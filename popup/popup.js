@@ -71,6 +71,14 @@ async function init() {
   }
   paintStatus();
 
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tabUrl = tab?.url || '';
+  const isPdf = /^https?:/.test(tabUrl) && (/\.pdf($|[?#])/i.test(tabUrl) || /\/pdf\/[^/]+\/?($|[?#])/i.test(tabUrl));
+  if (isPdf) {
+    $('openPdf').style.display = '';
+    $('openPdf').addEventListener('click', () => relay({ type: 'open-pdf', url: tabUrl }));
+  }
+
   $('summarize').addEventListener('click', () => relay({ type: 'proxy-action', action: 'pageSummary' }));
   $('quiz').addEventListener('click', () => relay({ type: 'proxy-action', action: 'pageQuiz' }));
   $('panel').addEventListener('click', () => relay({ type: 'proxy-toggle' }));

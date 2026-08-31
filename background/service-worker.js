@@ -386,7 +386,81 @@ const PAGES = {
   options: 'options/options.html'
 };
 
+/* ------------------------------------------------------------ PDF viewer */
+
+const VIEWER_PATH = 'viewer/viewer.html';
+const viewerUrl = (url) => `${chrome.runtime.getURL(VIEWER_PATH)}?file=${encodeURIComponent(url)}`;
+/** Tabs the user explicitly sent to Chrome's own PDF viewer, so we let them through once. */
+const bypass = new Map();
+
+/**
+ * Chrome's PDF plugin exposes no text DOM, so a PDF URL is sent to the
+ * extension's viewer instead. Detection is by URL: a `.pdf` file, or the
+ * `/pdf/<id>` shape that arXiv, bioRxiv and friends use.
+ */
+function looksLikePdf(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (!/^https?:$/.test(parsed.protocol)) return null;
+  const path = parsed.pathname;
+  if (/\.pdf$/i.test(path)) return 'certain';
+  // arXiv, bioRxiv and friends serve PDFs from an extensionless /pdf/<id> path.
+  return /\/pdf\/[^/]+\/?$/i.test(path) ? 'probable' : null;
+}
+
+/** Confirms an extensionless URL really is a PDF before hijacking the tab. */
+async function confirmPdf(url) {
+  try {
+    const response = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+    const type = response.headers.get('content-type') || '';
+    if (/pdf/i.test(type)) return true;
+    if (/html|json|xml|plain/i.test(type)) return false;
+  } catch {
+    /* HEAD blocked or offline - fall back to the URL shape */
+  }
+  return true;
+}
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+  const url = changeInfo.url;
+  if (!url || url.startsWith('chrome-extension:')) return;
+  if (bypass.get(tabId) === url) {
+    bypass.delete(tabId);
+    return;
+  }
+  const verdict = looksLikePdf(url);
+  if (!verdict) return;
+  const settings = await getSettings();
+  if (!settings.pdfViewer) return;
+  if (verdict === 'probable' && !(await confirmPdf(url))) return;
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  // The user may have navigated on during the HEAD check.
+  if (!tab || tab.url !== url) {
+    if (tab && tab.pendingUrl !== url && tab.url !== url) return;
+  }
+  chrome.tabs.update(tabId, { url: viewerUrl(url) }).catch(() => {});
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => bypass.delete(tabId));
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === 'open-original' && _sender.tab?.id) {
+    // Let this one navigation through without bouncing back to the viewer.
+    bypass.set(_sender.tab.id, message.url);
+    chrome.tabs.update(_sender.tab.id, { url: message.url });
+    return false;
+  }
+  if (message?.type === 'open-pdf') {
+    (async () => {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id && message.url) chrome.tabs.update(tab.id, { url: viewerUrl(message.url) });
+    })();
+    return false;
+  }
   if (message?.type === 'open-page') {
     const page = PAGES[message.page];
     if (page) chrome.tabs.create({ url: chrome.runtime.getURL(page) });

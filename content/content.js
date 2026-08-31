@@ -65,7 +65,24 @@
   }
 
   const normalize = (text) => String(text || '').replace(/\s+/g, ' ').trim();
-  const pageKey = () => location.origin + location.pathname;
+
+  /**
+   * The URL of the document being read. In the PDF study viewer the tab's own
+   * URL is the viewer page, so notes and highlights key off the PDF instead.
+   */
+  function docUrl() {
+    if (location.protocol === 'chrome-extension:') {
+      const file = new URLSearchParams(location.search).get('file');
+      if (file) return file;
+    }
+    return location.href;
+  }
+
+  const pageKey = () => {
+    const url = docUrl();
+    if (url !== location.href) return url.split('#')[0];
+    return location.origin + location.pathname;
+  };
 
   function loadSettings() {
     chrome.storage.local.get('settings', (stored) => {
@@ -346,6 +363,11 @@
   }
 
   function pageText(limit = 18000) {
+    // The PDF viewer can hand over every page's text, including unrendered ones.
+    if (typeof window.__claudeStudyPageText === 'function') {
+      const extracted = window.__claudeStudyPageText();
+      if (extracted) return String(extracted).slice(0, limit);
+    }
     const main = document.querySelector('main, article, [role="main"]') || document.body;
     const text = (main.innerText || main.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
     return text.slice(0, limit);
@@ -779,7 +801,7 @@
         pageText: state.subject.isPage ? state.subject.text : '',
         context: state.subject.context || '',
         title: document.title,
-        url: location.href
+        url: docUrl()
       }
     });
   }
@@ -884,7 +906,7 @@
     const notes = store.notes || [];
     notes.push({
       id: 'note_' + Date.now().toString(36),
-      url: location.href,
+      url: docUrl(),
       title: document.title,
       selection: state.subject && !state.subject.isPage ? state.subject.text : '',
       question: lastUser ? lastUser.content.slice(0, 400) : '',
@@ -980,7 +1002,13 @@
   /* -------------------------------------------------------------- init */
 
   loadSettings();
-  const restoreSoon = () => restoreAll().catch(() => {});
+  let restoreTimer = null;
+  const restoreSoon = () => {
+    clearTimeout(restoreTimer);
+    restoreTimer = setTimeout(() => restoreAll().catch(() => {}), 120);
+  };
+  // The PDF viewer renders pages lazily and calls this as each one appears.
+  window.__claudeStudyRestoreHighlights = restoreSoon;
   if (document.readyState === 'complete') restoreSoon();
   else window.addEventListener('load', restoreSoon, { once: true });
   setTimeout(restoreSoon, 2500);

@@ -1,0 +1,50 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R 7 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Length 412 >>
+stream
+BT /F1 20 Tf 72 720 Td (Photosynthesis) Tj ET
+BT /F1 12 Tf 72 668 Td (Photosynthesis is the process by which plants convert light energy) Tj ET
+BT /F1 12 Tf 72 642 Td (into chemical energy stored in glucose. The light-dependent reactions) Tj ET
+BT /F1 12 Tf 72 616 Td (occur in the thylakoid membrane, where chlorophyll absorbs photons) Tj ET
+BT /F1 12 Tf 72 590 Td (and drives the transfer of electrons.) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+endobj
+6 0 obj
+<< /Length 324 >>
+stream
+BT /F1 20 Tf 72 720 Td (The Calvin cycle) Tj ET
+BT /F1 12 Tf 72 668 Td (The Calvin cycle fixes carbon dioxide into three-carbon sugars using) Tj ET
+BT /F1 12 Tf 72 642 Td (the ATP and NADPH produced by the light reactions. Rubisco catalyses) Tj ET
+BT /F1 12 Tf 72 616 Td (the first committed step of carbon fixation.) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000191 00000 n 
+0000000653 00000 n 
+0000000779 00000 n 
+0000001153 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+1279
+%%EOF

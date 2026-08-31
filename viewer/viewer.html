@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Study viewer</title>
+  <link rel="stylesheet" href="../lib/pages.css" />
+  <link rel="stylesheet" href="../content/content.css" />
+  <link rel="stylesheet" href="viewer.css" />
+</head>
+<body>
+  <div class="bar">
+    <div class="dot"></div>
+    <div class="doc" id="title">Loading…</div>
+    <div class="tools">
+      <button id="prev" title="Previous page">‹</button>
+      <input type="text" id="pageNum" value="1" />
+      <span class="label" id="pageCount">/ …</span>
+      <button id="next" title="Next page">›</button>
+      <button id="zoomOut" title="Zoom out">−</button>
+      <span class="label" id="zoomLabel">125%</span>
+      <button id="zoomIn" title="Zoom in">+</button>
+      <button id="original" title="Open the raw PDF in Chrome's viewer">Original</button>
+    </div>
+  </div>
+
+  <div id="pages"></div>
+  <div id="notice" hidden></div>
+
+  <script src="../lib/markdown.js"></script>
+  <script src="../content/content.js"></script>
+  <script type="module" src="viewer.js"></script>
+</body>
+</html>

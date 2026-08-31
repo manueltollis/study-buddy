@@ -85,6 +85,7 @@ empty.
   what the last section said?"*. The passage and its surrounding page context go along with it.
 - **Follow up** in the same box — the thread keeps the passage in context, and preset actions and
   typed questions mix freely in one conversation.
+- **PDFs work too** — papers open in the extension's own viewer, where text is selectable. See below.
 - **Highlights** — any passage you ask about is highlighted, and comes back the next time you open
   the page. Click a highlight to reopen it; **Alt-click** to remove it.
 - **Save note** under any answer files it in your study notes (`☰` in the panel header).
@@ -100,6 +101,33 @@ empty.
 
 Rebind these at `chrome://extensions/shortcuts`.
 
+## PDFs
+
+Chrome renders PDFs with a plugin that exposes no text to extensions — you can't select a sentence
+in an arXiv paper and have anything reach it. So PDFs open in the extension's own viewer instead:
+[pdf.js](https://mozilla.github.io/pdf.js/) draws each page to a canvas and lays pdf.js's text layer
+over it, which is ordinary DOM. Selection, the bubble, the panel and persistent highlights all work
+exactly as they do on a web page.
+
+![a paper in the study viewer](docs/pdf.png)
+
+Open `arxiv.org/pdf/2505.05470` and you land in the viewer automatically — nothing to click. It
+handles `.pdf` URLs and the extensionless `/pdf/<id>` shape that arXiv and bioRxiv use; for the
+latter it checks the response's content type first, so a page that merely lives under `/pdf/` is
+left alone. *Original* in the toolbar hands the file back to Chrome's viewer, and the whole
+behaviour is one checkbox in settings.
+
+Two things worth knowing:
+
+- **Whole-document actions are better here.** *Summarize page* and *Quiz me on the page* use text
+  extracted from every page, including ones you haven't scrolled to yet.
+- **Highlights key off the PDF's URL**, not the viewer's, so they come back the next time you open
+  the paper — and notes link to the paper, not to a viewer URL.
+
+Local PDFs (`file://`) also work, but Chrome requires "Allow access to file URLs" for the extension
+on `chrome://extensions`. Scanned PDFs with no text layer can't be selected by anyone — there is no
+text in the file to select.
+
 ## Settings
 
 - **Provider** — Anthropic, Z.ai (GLM), OpenRouter, or a custom endpoint. Keys and model choice are
@@ -111,6 +139,7 @@ Rebind these at `chrome://extensions/shortcuts`.
   is for genuinely hard passages. Ignored on Haiku.
 - **Explain at this level** — keep it simple / student / expert. This changes the tone and depth
   of every answer.
+- **Open PDFs in the study viewer** — on by default; turn it off to leave PDFs to Chrome.
 - **Surrounding context** — how much nearby page text rides along with the passage so Claude can
   resolve pronouns and references. Set to 0 to send the passage alone.
 - **Show the model's reasoning** — Anthropic only: streams a summary of the thinking above each answer.
@@ -130,6 +159,8 @@ manifest.json
 background/service-worker.js   API calls, both wire formats, SSE streaming, menus, shortcuts
 content/content.js             selection bubble, panel, highlight engine
 content/content.css            highlight marks (the only styles in the page's DOM)
+viewer/                        pdf.js-based PDF viewer (canvas + selectable text layer)
+lib/pdfjs/                     vendored pdf.js 6.3.289 (Apache-2.0)
 lib/config.js                  providers, settings, model + price tables, prompts
 lib/markdown.js                DOM-building Markdown renderer (no innerHTML)
 lib/pages.css                  shared styles for the extension's own pages
@@ -157,6 +188,8 @@ After editing files, hit the reload icon on `chrome://extensions` and refresh op
 ## Limits
 
 - Chrome blocks content scripts on `chrome://` pages, the Web Store, and other extensions' pages.
-- Built-in PDF viewing has no text DOM, so selections there aren't available.
+- Scanned/image-only PDFs have no text layer, so there is nothing to select (OCR would be needed).
 - Highlights are matched by their text, so they may not restore on pages whose content changes
   between visits.
+- The extension asks for access to all sites: it already ran a content script everywhere, and the
+  PDF viewer needs to fetch PDF bytes from whatever host serves them.

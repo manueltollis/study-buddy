@@ -11,9 +11,7 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://api.anthropic.com/*",
-    "https://api.z.ai/*",
-    "https://openrouter.ai/*"
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "background/service-worker.js",

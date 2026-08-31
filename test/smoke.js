@@ -23,8 +23,11 @@ const results = [];
 const check = (name, pass, detail) => { results.push({ name, pass, detail }); console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  \u2014 ' + detail : ''}`); };
 
 const site = http.createServer((req, res) => {
-  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-  res.end(fs.readFileSync(path.join(__dirname, 'fixture.html')));
+  const wantsPdf = req.url.startsWith('/fixture.pdf');
+  res.writeHead(200, {
+    'content-type': wantsPdf ? 'application/pdf' : 'text/html; charset=utf-8'
+  });
+  res.end(fs.readFileSync(path.join(__dirname, wantsPdf ? 'fixture.pdf' : 'fixture.html')));
 }).listen(SITE_PORT);
 class CDP {
   constructor(ws) {
@@ -108,7 +111,10 @@ async function targets() {
 
   await sw.eval(`
     globalThis.__req = null;
+    globalThis.__realFetch = globalThis.fetch;
+    globalThis.__isApiCall = (u) => String(u).includes('/v1/messages') || String(u).includes('/chat/completions');
     globalThis.fetch = async (url, opts) => {
+      if (!globalThis.__isApiCall(url)) return globalThis.__realFetch(url, opts);
       globalThis.__req = { url, headers: opts.headers, body: JSON.parse(opts.body) };
       const events = [
         { type: 'message_start', message: { id: 'msg_x', model: JSON.parse(opts.body).model, usage: { input_tokens: 412, output_tokens: 0 } } },
@@ -212,7 +218,9 @@ async function targets() {
   // an identity-linked key without a workspace gets an actionable message
   await sw.eval(`
     globalThis.__realStub = globalThis.fetch;
-    globalThis.fetch = async () => new Response(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'anthropic-workspace-id is required when authenticating with an identity-linked API key; send the id of the workspace this request acts in.' } }), { status: 400, headers: { 'content-type': 'application/json' } });
+    globalThis.fetch = async (url, opts) => !globalThis.__isApiCall(url)
+      ? globalThis.__realFetch(url, opts)
+      : new Response(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'anthropic-workspace-id is required when authenticating with an identity-linked API key; send the id of the workspace this request acts in.' } }), { status: 400, headers: { 'content-type': 'application/json' } });
     'stubbed-400'`);
   await page.eval(`document.getElementById('claude-study-buddy-root').shadowRoot.querySelectorAll('.chip')[2].click(); 'keypoints'`);
   await sleep(1000);
@@ -251,6 +259,7 @@ async function targets() {
   await sw.eval(`
     globalThis.__anthropicStub = globalThis.fetch;
     globalThis.fetch = async (url, opts) => {
+      if (!globalThis.__isApiCall(url)) return globalThis.__realFetch(url, opts);
       globalThis.__req = { url, headers: opts.headers, body: JSON.parse(opts.body) };
       const events = [
         { model: 'z-ai/glm-5.3-flash', choices: [{ delta: { role: 'assistant', content: 'Via OpenRouter: ' }, finish_reason: null }] },
@@ -342,6 +351,79 @@ async function targets() {
     JSON.stringify(customParsed.text.slice(-80)));
   const customTurn = await page.eval(`document.getElementById('claude-study-buddy-root').shadowRoot.querySelector('.turn--user').textContent`);
   check('custom question shows in the thread', customTurn === 'Why does the cycle need ATP and NADPH specifically?', JSON.stringify(customTurn));
+
+  // --- PDFs: Chrome's plugin has no text DOM, so the viewer renders them instead
+  const pdfUrl = `http://localhost:${SITE_PORT}/fixture.pdf`;
+  await fetch(`http://127.0.0.1:${PORT}/json/new?${pdfUrl}`, { method: 'PUT' }).then((r) => r.json());
+  let viewerTarget = null;
+  for (let i = 0; i < 60 && !viewerTarget; i++) {
+    await sleep(200);
+    viewerTarget = (await targets()).find((t) => t.url.includes(`${loaded.id}/viewer/viewer.html`));
+  }
+  check('a PDF URL redirects into the study viewer', Boolean(viewerTarget),
+    viewerTarget ? '…' + decodeURIComponent(viewerTarget.url).slice(-34) : 'no viewer tab appeared');
+
+  if (viewerTarget) {
+    const pdf = await CDP.connect(viewerTarget.webSocketDebuggerUrl);
+    await pdf.send('Runtime.enable');
+    await pdf.send('Page.enable');
+
+    let spans = 0;
+    for (let i = 0; i < 60 && spans === 0; i++) {
+      await sleep(250);
+      spans = await pdf.eval(`document.querySelectorAll('.textLayer span').length`).catch(() => 0);
+    }
+    check('pdf.js renders a real text layer', spans > 5, `${spans} spans`);
+
+    const canvasSize = await pdf.eval(`(() => { const c = document.querySelector('.page canvas'); return c ? c.width + 'x' + c.height : 'none'; })()`);
+    check('the page is drawn to canvas', /^[1-9]\d+x[1-9]\d+$/.test(canvasSize), canvasSize);
+
+    const picked = await pdf.eval(`(() => {
+      const spans = [...document.querySelectorAll('.textLayer span')].filter((s) => s.textContent.trim());
+      const target = spans.find((s) => /chlorophyll/i.test(s.textContent));
+      if (!target) return '';
+      const range = document.createRange();
+      range.selectNodeContents(target);
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      return target.textContent;
+    })()`);
+    await sleep(400);
+    const pdfBubble = await pdf.eval(`document.getElementById('claude-study-buddy-root').shadowRoot.querySelector('.bubble').classList.contains('bubble--on')`);
+    check('selecting PDF text raises the bubble', pdfBubble === true && /chlorophyll/i.test(picked), JSON.stringify(picked.slice(0, 40)));
+
+    await pdf.eval(`document.getElementById('claude-study-buddy-root').shadowRoot.querySelector('.bubble .primary').click(); 'ask'`);
+    await sleep(1400);
+    const pdfReq = JSON.parse(await sw.eval(`JSON.stringify({ text: globalThis.__req.body.messages[0].content, url: globalThis.__req.body.messages[0].content.match(/URL: (.*)/)[1] })`));
+    check('the PDF passage reaches the model with the document URL',
+      /chlorophyll absorbs photons/i.test(pdfReq.text) && pdfReq.url === pdfUrl,
+      JSON.stringify(pdfReq.url));
+
+    const marks = await pdf.eval(`document.querySelectorAll('.textLayer mark.claude-study-highlight').length`);
+    check('the PDF passage is highlighted', marks >= 1, `marks=${marks}`);
+
+    const fullText = await pdf.eval(`(window.__claudeStudyPageText && window.__claudeStudyPageText()) || ''`);
+    check('whole-document text covers unrendered pages', /Rubisco/.test(fullText) && /Photosynthesis/.test(fullText), `${fullText.length} chars`);
+
+    await pdf.send('Page.navigate', { url: viewerTarget.url });
+    let restoredMarks = 0;
+    for (let i = 0; i < 40 && restoredMarks === 0; i++) {
+      await sleep(300);
+      restoredMarks = await pdf.eval(`document.querySelectorAll('.textLayer mark.claude-study-highlight').length`).catch(() => 0);
+    }
+    check('PDF highlights survive a reload', restoredMarks >= 1, `marks=${restoredMarks}`);
+
+    const stored = await sw.eval(`chrome.storage.local.get('highlights').then(s => Object.keys(s.highlights).join(','))`);
+    check('PDF highlights are keyed by the document, not the viewer', stored.includes('/fixture.pdf'), stored);
+  }
+
+  // a /pdf/ URL that isn't a PDF must not hijack the tab
+  const notPdf = `http://localhost:${SITE_PORT}/pdf/not-really`;
+  const decoy = await fetch(`http://127.0.0.1:${PORT}/json/new?${notPdf}`, { method: 'PUT' }).then((r) => r.json());
+  await sleep(2500);
+  const decoyUrl = ((await targets()).find((t) => t.id === decoy.id) || {}).url || '';
+  check('a non-PDF /pdf/ URL is left alone', decoyUrl.startsWith(notPdf), decoyUrl.slice(0, 60));
+  await fetch(`http://127.0.0.1:${PORT}/json/close/${decoy.id}`);
 
   // error path: no key
   await sw.eval(`chrome.storage.local.set({ settings: { provider: 'anthropic', keys: { anthropic: '' }, models: { anthropic: 'claude-opus-5' }, effort: 'medium', bubbleEnabled: true, autoHighlight: false } })`);
