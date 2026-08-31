@@ -1,0 +1,36 @@
+.wrap.wide { max-width: 780px; }
+.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 18px; }
+.tabs { display: flex; gap: 4px; background: var(--sunken); padding: 3px; border-radius: 9px; }
+.tab { border: 0; background: transparent; color: var(--muted); padding: 6px 12px; border-radius: 7px; }
+.tab.is-on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.toolbar input { flex: 1; }
+
+.card { border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; }
+.card__head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.card__site { font-size: 12px; color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card__site a { color: var(--muted); text-decoration: none; }
+.card__site a:hover { color: var(--accent); text-decoration: underline; }
+.card__date { font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+.quote { border-left: 2px solid var(--accent); padding: 2px 0 2px 12px; margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+.ask { font-size: 12.5px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+.answer { font-size: 14px; }
+.answer > *:first-child { margin-top: 0; }
+.answer > *:last-child { margin-bottom: 0; }
+.answer p, .answer ul, .answer ol, .answer pre { margin: 0 0 10px; }
+.answer ul, .answer ol { padding-left: 22px; }
+.answer code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
+.answer pre { background: var(--code-bg); padding: 10px 12px; border-radius: 8px; overflow-x: auto; }
+.answer pre code { background: none; padding: 0; }
+.answer a { color: var(--accent); }
+.answer hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
+.card__foot { margin-top: 12px; display: flex; gap: 6px; }
+
+.group { margin-bottom: 22px; }
+.group__head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.group__title { font-size: 13.5px; font-weight: 600; }
+.group__title a { color: var(--text); text-decoration: none; }
+.group__title a:hover { color: var(--accent); }
+.group__count { font-size: 12px; color: var(--faint); }
+.hl { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.hl span { flex: 1; color: var(--muted); }
+.empty { color: var(--faint); text-align: center; padding: 40px 0; }

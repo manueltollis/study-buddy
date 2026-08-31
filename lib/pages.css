@@ -1,0 +1,67 @@
+/* Shared styling for the extension's own pages (options, notes, popup). */
+:root {
+  --surface: #ffffff; --sunken: #faf7f4; --text: #1f1c1a; --muted: #6b625c; --faint: #9b918a;
+  --line: #e7e1dc; --hover: #f4efeb; --code-bg: #f4efeb;
+  --accent: #d97757; --accent-ink: #ffffff; --danger: #b4402c; --ok: #2f7d5d;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #201d1b; --sunken: #262220; --text: #f0ebe7; --muted: #a79d96; --faint: #7d746e;
+    --line: #383331; --hover: #2b2725; --code-bg: #2b2725;
+    --accent: #e58b6c; --accent-ink: #1f1c1a; --danger: #f0907a; --ok: #6cc39a;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--surface); color: var(--text);
+  font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+}
+.wrap { max-width: 660px; margin: 0 auto; padding: 32px 24px 64px; }
+header.masthead { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.dot { width: 18px; height: 18px; border-radius: 5px; background: var(--accent); }
+h1 { font-size: 19px; margin: 0; font-weight: 650; }
+.sub { color: var(--muted); font-size: 13px; margin: 0 0 26px; }
+
+section { border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+section h2 { font-size: 13px; margin: 0 0 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+
+.field { margin-bottom: 16px; }
+.field:last-child { margin-bottom: 0; }
+label.lab { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+.hint { font-size: 12px; color: var(--muted); margin: 5px 0 0; }
+.hint a { color: var(--accent); }
+
+input[type="text"], input[type="password"], input[type="number"], select, textarea {
+  width: 100%; padding: 8px 10px; font: inherit; font-size: 13px; color: var(--text);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+}
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+.row { display: flex; gap: 8px; align-items: center; }
+.row > input { flex: 1; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+button {
+  font: inherit; font-size: 13px; font-weight: 550; padding: 8px 13px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer;
+}
+button:hover { background: var(--hover); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.primary:hover { filter: brightness(1.05); background: var(--accent); }
+button.ghost { border-color: transparent; color: var(--muted); }
+button.danger { color: var(--danger); }
+
+.check { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; }
+.check:last-child { margin-bottom: 0; }
+.check input { margin: 3px 0 0; accent-color: var(--accent); }
+.check .lab { font-weight: 600; font-size: 13px; }
+.check .hint { margin: 2px 0 0; }
+
+.status { font-size: 12.5px; margin-top: 9px; min-height: 17px; }
+.status.ok { color: var(--ok); }
+.status.err { color: var(--danger); }
+
+kbd {
+  font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code-bg);
+  border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px;
+}

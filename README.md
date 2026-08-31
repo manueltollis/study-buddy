@@ -1,0 +1,162 @@
+# Claude Study Buddy
+
+A Chrome extension for reading hard things. Highlight a passage on any page and ask Claude to
+explain it, simplify it, define the jargon, or quiz you on it — without leaving the page.
+
+![panel](docs/panel.png)
+
+## Install
+
+1. Open `chrome://extensions` and turn on **Developer mode** (top right).
+2. Click **Load unpacked** and pick this folder.
+3. The settings page opens on first install — pick a **provider**, paste its API key, and hit
+   **Test**.
+
+The key is stored in `chrome.storage.local` for this browser profile. Requests are made from the
+extension's background worker straight to the provider — the key is never exposed to the pages you
+browse, and nothing is sent anywhere else.
+
+## Providers and what a question costs
+
+Every provider here speaks the Anthropic Messages API, so switching one is a base-URL swap. Pick it
+in settings, or flip between them from the toolbar popup mid-session.
+
+![settings](docs/settings.png)
+
+| Provider | Model | $/M in → out | ≈ per question | Questions per $1 |
+| --- | --- | --- | --- | --- |
+| Anthropic | Opus 5 | 5 → 25 | $0.0075 | ~130 |
+| Anthropic | Sonnet 5 | 2 → 10 | $0.0030 | ~330 |
+| Anthropic | Haiku 4.5 | 1 → 5 | $0.0015 | ~670 |
+| Z.ai / OpenRouter | GLM-5.3 | 1.40 → 4.40 | $0.0016 | ~630 |
+| Z.ai / OpenRouter | **GLM-5.3-Flash** | 0.075 → 0.25 | **$0.00009** | **~11,000** |
+| OpenRouter | DeepSeek V4 Flash | 0.065 → 0.18 | $0.00007 | ~14,000 |
+| OpenRouter | anything `:free` | 0 → 0 | $0 | — |
+
+Sized on a typical question (≈500 tokens in, 200 out); the panel shows the real number under every
+answer. GLM-5.3-Flash is at promotional pricing (50% off) as of writing.
+
+- **Anthropic** — Claude models, billed per token.
+- **Z.ai** — GLM over `https://api.z.ai/api/anthropic`, which speaks the Messages API natively.
+  Key: [z.ai](https://z.ai/manage-apikey/apikey-list).
+- **OpenRouter** — one key, ~400 models including free ones. Settings pulls the live catalog with
+  current per-token prices, so the model box autocompletes and the cost readout stays accurate; hit
+  *Refresh model list* to re-pull. Key: [openrouter.ai/keys](https://openrouter.ai/keys).
+- **Custom endpoint** — anything else: a gateway, a proxy, a local server. Pick the API shape
+  (Anthropic Messages or OpenAI Chat Completions), enter the base URL, click *Grant access to this
+  host* so Chrome allows the origin, and type the model name.
+
+Two request shapes are implemented. OpenRouter uses the **OpenAI Chat Completions** wire because its
+Anthropic-compatible endpoint is documented as Anthropic-models-only, and the point of OpenRouter
+here is the cheap non-Anthropic models. Everything else uses the **Anthropic Messages** wire.
+
+Effort, refusal fallbacks, workspace IDs and reasoning display are Anthropic-specific and are simply
+not sent to other providers. On the Anthropic wire with a non-Anthropic provider, the key goes out as
+both `Authorization: Bearer` and `x-api-key`, since gateways differ on which they read.
+
+> There is no way to bill these calls to a Claude.ai Pro/Max subscription — the subscription and the
+> API are separate products. The only subscription route would be a local bridge that shells out to
+> the `claude` CLI; that isn't built here.
+
+### Anthropic: if you see "anthropic-workspace-id is required…"
+
+Your key isn't scoped to a single workspace, so every request has to say which workspace it acts
+in. Either fix works:
+
+- Paste your workspace ID into the **Workspace ID** field in settings. It's the `wrkspc_…` value in
+  the ID column of [Console → Settings → Workspaces](https://platform.claude.com/settings/workspaces)
+  (pasting the whole console URL works — the ID is picked out of it). The extension then sends it as
+  the `anthropic-workspace-id` header on every request.
+- Or create a new key scoped to one specific workspace, and leave the field empty.
+
+A successful **Test** reports which workspace answered, and fills the field in for you if it was
+empty.
+
+## Using it
+
+**Select text** → a bubble appears with *Explain · Simpler · Quiz · Ask…*.
+
+![selection bubble](docs/bubble.png)
+
+- **Preset actions** — the bubble's first three, plus the full set in the panel: Explain, Simpler,
+  Key points, Example, Define terms, Quiz me.
+- **Your own question** — hit **Ask…** on the bubble (or just type in the panel's input box) and ask
+  whatever you actually want to know: *"why does this need ATP?"*, *"how is this different from
+  what the last section said?"*. The passage and its surrounding page context go along with it.
+- **Follow up** in the same box — the thread keeps the passage in context, and preset actions and
+  typed questions mix freely in one conversation.
+- **Highlights** — any passage you ask about is highlighted, and comes back the next time you open
+  the page. Click a highlight to reopen it; **Alt-click** to remove it.
+- **Save note** under any answer files it in your study notes (`☰` in the panel header).
+- **Whole page** — from the toolbar popup: *Summarize this page* or *Quiz me on the page*.
+- **Right-click** any selection for the same actions.
+
+| Shortcut | Action |
+| --- | --- |
+| `⌘⇧E` / `Ctrl+Shift+E` | Explain the current selection |
+| `⌘⇧U` / `Ctrl+Shift+U` | Show / hide the panel |
+| `Esc` | Close the panel |
+| `Enter` | Send your question (`Shift+Enter` for a newline) |
+
+Rebind these at `chrome://extensions/shortcuts`.
+
+## Settings
+
+- **Provider** — Anthropic, Z.ai (GLM), OpenRouter, or a custom endpoint. Keys and model choice are
+  remembered per provider, so switching back and forth costs nothing — cheap model for skimming,
+  Opus for the paragraph that actually matters.
+- **Workspace ID** — Anthropic only, and only for a key that spans several workspaces (see above).
+- **Model** — the panel footer shows tokens and the real cost of each answer.
+- **Effort** — Anthropic only: how hard the model thinks before answering. `low` is snappy, `high`+
+  is for genuinely hard passages. Ignored on Haiku.
+- **Explain at this level** — keep it simple / student / expert. This changes the tone and depth
+  of every answer.
+- **Surrounding context** — how much nearby page text rides along with the passage so Claude can
+  resolve pronouns and references. Set to 0 to send the passage alone.
+- **Show the model's reasoning** — Anthropic only: streams a summary of the thinking above each answer.
+- **Retry declined requests on a fallback model** — Anthropic only: server-side refusal fallback for Opus 5. If
+  your account isn't enrolled in that beta the extension drops it automatically on the first 400
+  and retries; you can also just turn it off.
+
+## Notes and highlights
+
+`☰` in the panel (or *Notes* in the popup) opens the study-notes page: everything you saved,
+everything you highlighted, grouped by page, searchable, and exportable as one Markdown file.
+
+## Layout
+
+```
+manifest.json
+background/service-worker.js   API calls, both wire formats, SSE streaming, menus, shortcuts
+content/content.js             selection bubble, panel, highlight engine
+content/content.css            highlight marks (the only styles in the page's DOM)
+lib/config.js                  providers, settings, model + price tables, prompts
+lib/markdown.js                DOM-building Markdown renderer (no innerHTML)
+lib/pages.css                  shared styles for the extension's own pages
+options/  popup/  notes/       settings, toolbar popup, study notes
+test/smoke.js                  end-to-end test
+```
+
+The panel lives in a shadow root, so page CSS can't reach it and its styles can't leak out. Model
+output is rendered by building DOM nodes with `textContent` — never `innerHTML` — so a page can't
+be scripted through an answer.
+
+## Development
+
+```bash
+node test/smoke.js
+```
+
+Launches headless Chrome with the extension loaded, stubs the Anthropic endpoint inside the
+service worker, and drives a real selection → streamed answer → highlight → follow-up → reload
+flow, plus the options, notes, and popup pages. No API key or network access needed. Set
+`CHROME_PATH` if Chrome isn't at the macOS default location.
+
+After editing files, hit the reload icon on `chrome://extensions` and refresh open tabs.
+
+## Limits
+
+- Chrome blocks content scripts on `chrome://` pages, the Web Store, and other extensions' pages.
+- Built-in PDF viewing has no text DOM, so selections there aren't available.
+- Highlights are matched by their text, so they may not restore on pages whose content changes
+  between visits.

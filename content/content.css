@@ -1,0 +1,16 @@
+/* Light-DOM styles: only the highlight marks live outside the shadow root. */
+mark.claude-study-highlight {
+  background: linear-gradient(transparent 55%, rgba(217, 119, 87, 0.34) 55%);
+  color: inherit;
+  padding: 0;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+mark.claude-study-highlight:hover {
+  background: linear-gradient(transparent 45%, rgba(217, 119, 87, 0.5) 45%);
+}
+mark.claude-study-highlight.claude-study-highlight--active {
+  background: rgba(217, 119, 87, 0.32);
+  box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.45);
+}

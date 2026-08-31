@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Claude Study Buddy — Settings</title>
+  <link rel="stylesheet" href="../lib/pages.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="masthead"><div class="dot"></div><h1>Claude Study Buddy</h1></header>
+    <p class="sub">Highlight anything on a page and ask about it.</p>
+
+    <section>
+      <h2>Provider &amp; key</h2>
+
+      <div class="field">
+        <label class="lab" for="provider">Provider</label>
+        <select id="provider"></select>
+        <p class="hint" id="providerHint"></p>
+      </div>
+
+      <div class="field js-custom">
+        <label class="lab" for="customWire">API shape</label>
+        <select id="customWire">
+          <option value="anthropic">Anthropic Messages — POST /v1/messages</option>
+          <option value="openai">OpenAI Chat Completions — POST /chat/completions</option>
+        </select>
+      </div>
+
+      <div class="field js-custom">
+        <label class="lab" for="customBaseUrl">Endpoint base URL</label>
+        <input type="text" id="customBaseUrl" placeholder="https://example.com/api/anthropic" spellcheck="false" />
+        <p class="hint">Any endpoint that speaks the Anthropic Messages API. The extension appends <code>/v1/messages</code>.</p>
+        <div class="row" style="margin-top:8px">
+          <button id="grant" type="button">Grant access to this host</button>
+          <span class="status" id="grantStatus"></span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="lab" for="apiKey">API key</label>
+        <div class="row">
+          <input type="password" id="apiKey" autocomplete="off" spellcheck="false" />
+          <button id="reveal" type="button">Show</button>
+          <button id="test" type="button">Test</button>
+        </div>
+        <p class="hint" id="keyHint"></p>
+        <div class="status" id="keyStatus"></div>
+      </div>
+
+      <div class="field js-anthropic">
+        <label class="lab" for="workspaceId">Workspace ID <span style="font-weight:400;color:var(--faint)">— only if your key spans several workspaces</span></label>
+        <input type="text" id="workspaceId" placeholder="wrkspc_…" autocomplete="off" spellcheck="false" />
+        <p class="hint">
+          A key created for one specific workspace needs nothing here. Otherwise copy the ID column at
+          <a href="https://platform.claude.com/settings/workspaces" target="_blank" rel="noreferrer">Settings → Workspaces</a>
+          (pasting the whole console URL works too).
+        </p>
+        <div class="status" id="workspaceStatus"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Model</h2>
+      <div class="grid2">
+        <div class="field">
+          <label class="lab" for="model">Model</label>
+          <select id="model"></select>
+          <input type="text" id="customModel" list="modelList" placeholder="model-name" spellcheck="false" style="display:none" />
+          <datalist id="modelList"></datalist>
+          <div class="row js-catalog" style="margin-top:8px">
+            <button id="refreshModels" type="button">Refresh model list</button>
+            <span class="status" id="catalogStatus"></span>
+          </div>
+          <p class="hint" id="priceHint"></p>
+        </div>
+        <div class="field js-anthropic">
+          <label class="lab" for="effort">Effort</label>
+          <select id="effort"></select>
+          <p class="hint">How hard the model thinks before answering. Lower is faster and cheaper.</p>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label class="lab" for="level">Explain at this level</label>
+          <select id="level">
+            <option value="simple">Keep it simple</option>
+            <option value="student">Student — new to the topic</option>
+            <option value="expert">Expert — precise and technical</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="lab" for="maxTokens">Max answer length (tokens)</label>
+          <input type="number" id="maxTokens" min="256" max="32000" step="256" />
+        </div>
+      </div>
+      <div class="check js-anthropic">
+        <input type="checkbox" id="showReasoning" />
+        <div>
+          <div class="lab">Show the model's reasoning</div>
+          <p class="hint">Streams a summary of the thinking above each answer. Ignored on Haiku.</p>
+        </div>
+      </div>
+      <div class="check js-anthropic">
+        <input type="checkbox" id="useFallbacks" />
+        <div>
+          <div class="lab">Retry declined requests on a fallback model</div>
+          <p class="hint">Server-side fallback for Opus 5. Turn off if your account isn't enrolled in the beta.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Reading</h2>
+      <div class="check">
+        <input type="checkbox" id="bubbleEnabled" />
+        <div>
+          <div class="lab">Show the quick-action bubble on selection</div>
+          <p class="hint">Turn off to use only the keyboard shortcut and right-click menu.</p>
+        </div>
+      </div>
+      <div class="check">
+        <input type="checkbox" id="autoHighlight" />
+        <div>
+          <div class="lab">Highlight passages I ask about</div>
+          <p class="hint">Highlights come back when you revisit the page. Click one to reopen it, Alt-click to remove it.</p>
+        </div>
+      </div>
+      <div class="field">
+        <label class="lab" for="contextChars">Surrounding context sent with a passage</label>
+        <input type="number" id="contextChars" min="0" max="8000" step="100" />
+        <p class="hint">Characters of nearby page text sent along so the model can disambiguate. 0 sends the passage alone.</p>
+      </div>
+      <p class="hint">
+        Shortcuts: <kbd>⌘⇧E</kbd> explain the selection · <kbd>⌘⇧U</kbd> show/hide the panel · <kbd>Esc</kbd> close.
+        Change them at <span id="shortcutLink" style="color:var(--accent);cursor:pointer">chrome://extensions/shortcuts</span>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Data</h2>
+      <div class="row">
+        <button id="openNotes" type="button">Open study notes</button>
+        <button id="clearHighlights" class="danger" type="button">Clear all highlights</button>
+        <button id="clearNotes" class="danger" type="button">Delete all notes</button>
+      </div>
+      <div class="status" id="dataStatus"></div>
+    </section>
+
+    <div class="status ok" id="saveStatus"></div>
+  </div>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

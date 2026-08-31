@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Claude Study Buddy</title>
+  <link rel="stylesheet" href="../lib/pages.css" />
+  <style>
+    body { width: 292px; }
+    .wrap { padding: 14px; max-width: none; }
+    .masthead { margin-bottom: 12px; }
+    h1 { font-size: 15px; }
+    section { padding: 12px; margin-bottom: 10px; }
+    .stack { display: flex; flex-direction: column; gap: 7px; }
+    .stack button { width: 100%; text-align: left; }
+    .keyline { font-size: 12.5px; margin-bottom: 10px; }
+    .keyline.err { color: var(--danger); }
+    .keyline.ok { color: var(--muted); }
+    .mini { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .mini label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 3px; }
+    .foot { display: flex; gap: 6px; }
+    .foot button { flex: 1; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="masthead"><div class="dot"></div><h1>Claude Study Buddy</h1></header>
+    <div class="keyline" id="keyline">Checking…</div>
+
+    <section>
+      <div class="mini">
+        <div><label for="provider">Provider</label><select id="provider"></select></div>
+        <div><label for="model">Model</label><select id="model"></select></div>
+      </div>
+      <div class="mini" id="effortRow" style="margin-top:8px">
+        <div><label for="effort">Effort</label><select id="effort"></select></div>
+        <div><label>&nbsp;</label><div class="keyline ok" id="costline" style="margin:0;font-size:11px"></div></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="stack">
+        <button id="summarize" type="button">Summarize this page</button>
+        <button id="quiz" type="button">Quiz me on this page</button>
+        <button id="panel" type="button">Show / hide the panel</button>
+      </div>
+    </section>
+
+    <div class="foot">
+      <button id="notes" type="button">Notes</button>
+      <button id="options" type="button">Settings</button>
+    </div>
+  </div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
