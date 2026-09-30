@@ -71,7 +71,7 @@ function headersFor(settings, withFallbacks) {
       'content-type': 'application/json',
       authorization: `Bearer ${key}`,
       // Attribution on gateways that show it (OpenRouter's activity dashboard).
-      'x-title': 'Claude Study Buddy'
+      'x-title': 'Study Buddy'
     };
   }
   const headers = { 'content-type': 'application/json', 'anthropic-version': API_VERSION };
@@ -324,7 +324,7 @@ async function handleAsk(msg, send, signal) {
       send({
         type: 'notice',
         requestId: msg.requestId,
-        text: 'Claude declined to answer this one. Rephrasing the question usually helps.'
+        text: 'The model declined to answer this one. Rephrasing the question usually helps.'
       });
     }
     const model = result.servedBy || activeModel(settings);
@@ -536,7 +536,7 @@ function buildMenus() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: 'claude-study-root',
-      title: 'Claude Study Buddy',
+      title: 'Study Buddy',
       contexts: ['selection', 'page']
     });
     for (const id of MENU_ACTIONS) {
@@ -596,7 +596,7 @@ async function sendToTab(tabId, message) {
       await chrome.scripting.insertCSS({ target: { tabId }, files: ['content/content.css'] });
       return await chrome.tabs.sendMessage(tabId, message);
     } catch (error) {
-      console.warn('Claude Study Buddy: cannot run on this page.', error);
+      console.warn('Study Buddy: cannot run on this page.', error);
       return null;
     }
   }

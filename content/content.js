@@ -576,7 +576,7 @@
     const panel = el('div', { class: 'panel' }, [
       el('div', { class: 'head' }, [
         el('div', { class: 'dot' }),
-        el('span', { class: 'title', text: 'Claude Study Buddy' }),
+        el('span', { class: 'title', text: 'Study Buddy' }),
         el('button', { class: 'icon-btn', title: 'Study notes', text: '☰', onclick: () => openExtensionPage('notes') }),
         el('button', { class: 'icon-btn', title: 'Close', text: '✕', onclick: closePanel })
       ]),

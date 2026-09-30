@@ -139,7 +139,7 @@ function exportMarkdown() {
     lines.push(note.answer, '', '---', '');
   }
   const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
-  const link = el('a', { href: URL.createObjectURL(blob), download: 'claude-study-notes.md' });
+  const link = el('a', { href: URL.createObjectURL(blob), download: 'study-buddy-notes.md' });
   document.body.appendChild(link);
   link.click();
   link.remove();

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Claude Study Buddy",
+  "name": "Study Buddy",
   "version": "1.0.0",
-  "description": "Highlight anything on a page and ask Claude to explain it, simplify it, or quiz you on it.",
+  "description": "Highlight anything on a page or PDF and get it explained, simplified, or turned into a quiz by the AI model you choose.",
   "minimum_chrome_version": "116",
   "permissions": [
     "storage",
@@ -36,7 +36,7 @@
   "options_page": "options/options.html",
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "Claude Study Buddy",
+    "default_title": "Study Buddy",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -63,7 +63,7 @@
         "default": "Ctrl+Shift+U",
         "mac": "Command+Shift+U"
       },
-      "description": "Show or hide the Claude panel"
+      "description": "Show or hide the Study Buddy panel"
     }
   },
   "optional_host_permissions": [

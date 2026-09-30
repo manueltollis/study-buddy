@@ -286,7 +286,7 @@ function handleLoadError(error) {
   if (isFile) {
     notice(
       'Chrome is blocking this local file',
-      'Local PDFs need file access for this extension. Open chrome://extensions, find Claude Study Buddy, and turn on "Allow access to file URLs", then reload this tab.',
+      'Local PDFs need file access for this extension. Open chrome://extensions, find Study Buddy, and turn on "Allow access to file URLs", then reload this tab.',
       [{ label: 'Reload', onClick: () => location.reload(), primary: true }]
     );
     return;

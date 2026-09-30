@@ -1,6 +1,6 @@
-# Claude Study Buddy
+# Study Buddy
 
-A Chrome extension for reading hard things. Highlight a passage on any page and ask Claude to
+A Chrome extension for reading hard things. Highlight a passage on any page and ask an AI model to
 explain it, simplify it, define the jargon, or quiz you on it — without leaving the page.
 
 ![panel](docs/panel.png)
@@ -140,7 +140,7 @@ text in the file to select.
 - **Explain at this level** — keep it simple / student / expert. This changes the tone and depth
   of every answer.
 - **Open PDFs in the study viewer** — on by default; turn it off to leave PDFs to Chrome.
-- **Surrounding context** — how much nearby page text rides along with the passage so Claude can
+- **Surrounding context** — how much nearby page text rides along with the passage so the model can
   resolve pronouns and references. Set to 0 to send the passage alone.
 - **Show the model's reasoning** — Anthropic only: streams a summary of the thinking above each answer.
 - **Retry declined requests on a fallback model** — Anthropic only: server-side refusal fallback for Opus 5. If
