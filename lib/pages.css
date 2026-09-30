@@ -1,59 +1,106 @@
-/* Shared styling for the extension's own pages (options, notes, popup). */
+/* Shared styling for the extension's own pages (options, notes, popup, viewer).
+   Identity: ink on paper, with a fluorescent highlighter as the one loud colour. */
+@font-face { font-family: "SB Display"; src: url("../fonts/bricolage.woff2") format("woff2"); font-weight: 200 800; font-display: swap; }
+@font-face { font-family: "SB Sans"; src: url("../fonts/geist.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "SB Mono"; src: url("../fonts/geist-mono.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+
 :root {
-  --surface: #ffffff; --sunken: #faf7f4; --text: #1f1c1a; --muted: #6b625c; --faint: #9b918a;
-  --line: #e7e1dc; --hover: #f4efeb; --code-bg: #f4efeb;
-  --accent: #d97757; --accent-ink: #ffffff; --danger: #b4402c; --ok: #2f7d5d;
+  --font-display: "SB Display", "SB Sans", system-ui, sans-serif;
+  --font-sans: "SB Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "SB Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --marker: #d4ff3a; --marker-soft: rgba(212, 255, 58, 0.55); --marker-edge: #a8d600;
+  --ink: #15142a;
+
+  --surface: #ffffff; --sunken: #f5f4ee; --text: #15142a; --muted: #5c5b73; --faint: #9a98ac;
+  --line: #e3e2ea; --line-strong: #cfcdda; --hover: #efeef4; --code-bg: #efeef4;
+  --accent: #2c46ef; --accent-ink: #ffffff;
+  --primary-bg: var(--ink); --primary-ink: var(--marker);
+  --danger: #d02f4a; --ok: #1d8a56;
+  --grid: rgba(21, 20, 42, 0.06);
+  --shadow: 0 1px 0 rgba(21, 20, 42, 0.04), 0 10px 30px -14px rgba(21, 20, 42, 0.22);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --surface: #201d1b; --sunken: #262220; --text: #f0ebe7; --muted: #a79d96; --faint: #7d746e;
-    --line: #383331; --hover: #2b2725; --code-bg: #2b2725;
-    --accent: #e58b6c; --accent-ink: #1f1c1a; --danger: #f0907a; --ok: #6cc39a;
+    --surface: #14141f; --sunken: #0d0d15; --text: #ecebf4; --muted: #a3a2b8; --faint: #6d6c84;
+    --line: #262636; --line-strong: #37374b; --hover: #1d1d2b; --code-bg: #1d1d2b;
+    --accent: #d4ff3a; --accent-ink: #15142a;
+    --primary-bg: var(--marker); --primary-ink: var(--ink);
+    --danger: #ff7a8e; --ok: #6fe0a4;
+    --grid: rgba(236, 235, 244, 0.05);
+    --shadow: 0 1px 0 rgba(255, 255, 255, 0.03), 0 14px 34px -16px rgba(0, 0, 0, 0.7);
   }
 }
 
 * { box-sizing: border-box; }
+::selection { background: var(--marker-soft); color: inherit; }
 body {
-  margin: 0; background: var(--surface); color: var(--text);
-  font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+  margin: 0; background-color: var(--sunken); color: var(--text);
+  font: 14px/1.55 var(--font-sans); -webkit-font-smoothing: antialiased;
+  background-image: radial-gradient(var(--grid) 1px, transparent 1.2px);
+  background-size: 18px 18px;
 }
-.wrap { max-width: 660px; margin: 0 auto; padding: 32px 24px 64px; }
-header.masthead { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
-.dot { width: 18px; height: 18px; border-radius: 5px; background: var(--accent); }
-h1 { font-size: 19px; margin: 0; font-weight: 650; }
-.sub { color: var(--muted); font-size: 13px; margin: 0 0 26px; }
+.wrap { max-width: 680px; margin: 0 auto; padding: 40px 24px 72px; }
 
-section { border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
-section h2 { font-size: 13px; margin: 0 0 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+/* Brand: a chisel-tip highlighter swipe. */
+header.masthead { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.dot {
+  width: 22px; height: 13px; flex: none; background: var(--marker);
+  border-radius: 3px 1px 3px 1px; transform: skewX(-18deg) rotate(-6deg);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.08);
+}
+h1 {
+  font-family: var(--font-display); font-size: 26px; line-height: 1.1; margin: 0;
+  font-weight: 750; letter-spacing: -0.025em; font-variation-settings: "opsz" 96;
+}
+.sub { color: var(--muted); font-size: 14px; margin: 0 0 30px 34px; }
+
+section {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  padding: 20px; margin-bottom: 14px; box-shadow: var(--shadow);
+}
+section h2 {
+  font: 500 11px/1 var(--font-mono); margin: 0 0 16px; text-transform: uppercase;
+  letter-spacing: 0.12em; color: var(--muted); display: flex; align-items: center; gap: 8px;
+}
+section h2::before { content: ""; width: 10px; height: 6px; background: var(--marker); border-radius: 1px; transform: skewX(-18deg); }
 
 .field { margin-bottom: 16px; }
 .field:last-child { margin-bottom: 0; }
-label.lab { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
-.hint { font-size: 12px; color: var(--muted); margin: 5px 0 0; }
-.hint a { color: var(--accent); }
+label.lab { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+.hint a, .hint code { color: var(--accent); }
+code { font-family: var(--font-mono); font-size: 0.92em; }
 
 input[type="text"], input[type="password"], input[type="number"], select, textarea {
-  width: 100%; padding: 8px 10px; font: inherit; font-size: 13px; color: var(--text);
-  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  width: 100%; padding: 9px 11px; font: inherit; font-size: 13px; color: var(--text);
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: 9px;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
-input:focus, select:focus { outline: none; border-color: var(--accent); }
-.row { display: flex; gap: 8px; align-items: center; }
-.row > input { flex: 1; }
+input:focus, select:focus, textarea:focus {
+  outline: none; border-color: var(--text); box-shadow: 0 0 0 3px var(--marker-soft);
+}
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row > input { flex: 1; min-width: 160px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
 button {
-  font: inherit; font-size: 13px; font-weight: 550; padding: 8px 13px; border-radius: 8px;
-  border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 560; padding: 8px 14px; border-radius: 9px;
+  border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, transform 80ms ease;
 }
-button:hover { background: var(--hover); }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-button.primary:hover { filter: brightness(1.05); background: var(--accent); }
+button:hover { background: var(--hover); border-color: var(--text); }
+button:active { transform: translateY(1px); }
+button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--marker-soft); }
+button.primary { background: var(--primary-bg); border-color: var(--primary-bg); color: var(--primary-ink); }
+button.primary:hover { background: var(--primary-bg); filter: brightness(1.12); }
 button.ghost { border-color: transparent; color: var(--muted); }
 button.danger { color: var(--danger); }
+button.danger:hover { border-color: var(--danger); }
 
-.check { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; }
+.check { display: flex; gap: 11px; align-items: flex-start; margin-bottom: 14px; }
 .check:last-child { margin-bottom: 0; }
-.check input { margin: 3px 0 0; accent-color: var(--accent); }
+.check input { margin: 3px 0 0; accent-color: var(--text); width: 15px; height: 15px; flex: none; }
 .check .lab { font-weight: 600; font-size: 13px; }
 .check .hint { margin: 2px 0 0; }
 
@@ -62,6 +109,6 @@ button.danger { color: var(--danger); }
 .status.err { color: var(--danger); }
 
 kbd {
-  font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code-bg);
-  border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px;
+  font: 500 11px var(--font-mono); background: var(--surface); color: var(--text);
+  border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px;
 }
