@@ -13,5 +13,6 @@ mark.claude-study-highlight {
 mark.claude-study-highlight:hover { background-size: 100% 92%; }
 mark.claude-study-highlight.claude-study-highlight--active {
   background-size: 100% 96%;
-  box-shadow: 0 0 0 2px rgba(21, 20, 42, 0.85);
+  background-image: linear-gradient(104deg, rgba(212, 255, 58, 0) 0.6%, rgba(212, 255, 58, 0.85) 2%, rgba(212, 255, 58, 0.72) 6%, rgba(212, 255, 58, 0.72) 94%, rgba(212, 255, 58, 0.9) 98%, rgba(212, 255, 58, 0) 99.4%);
+  text-decoration: underline 2px rgba(21, 20, 42, 0.55); text-underline-offset: 3px;
 }
