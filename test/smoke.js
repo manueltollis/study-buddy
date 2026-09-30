@@ -393,6 +393,28 @@ async function targets() {
     const canvasSize = await pdf.eval(`(() => { const c = document.querySelector('.page canvas'); return c ? c.width + 'x' + c.height : 'none'; })()`);
     check('the page is drawn to canvas', /^[1-9]\d+x[1-9]\d+$/.test(canvasSize), canvasSize);
 
+    const links = await pdf.eval(`(() => {
+      const anchors = [...document.querySelectorAll('.page[data-page="1"] .linkLayer a')];
+      const web = anchors.find((a) => a.target === '_blank');
+      const r = web && web.getBoundingClientRect();
+      const onTop = r ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === web : false;
+      return { count: anchors.length, href: web ? web.href : null, onTop };
+    })()`);
+    check('PDF web links are clickable', links.count === 2 && links.href === 'https://example.org/photosynthesis' && links.onTop, JSON.stringify(links));
+
+    const jumped = await pdf.eval(`(async () => {
+      const internal = [...document.querySelectorAll('.page[data-page="1"] .linkLayer a')].find((a) => !a.target);
+      const before = scrollY;
+      internal.click();
+      for (let i = 0; i < 30 && scrollY === before; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 700));
+      const page2 = document.querySelector('.page[data-page="2"]').getBoundingClientRect().top;
+      scrollTo(0, 0);
+      return { moved: scrollY !== before || page2 < innerHeight, page2Top: Math.round(page2) };
+    })()`);
+    check('PDF internal links jump to their page', jumped.page2Top < 200, JSON.stringify(jumped));
+    await sleep(300);
+
     const picked = await pdf.eval(`(() => {
       const spans = [...document.querySelectorAll('.textLayer span')].filter((s) => s.textContent.trim());
       const target = spans.find((s) => /chlorophyll/i.test(s.textContent));

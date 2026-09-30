@@ -50,3 +50,8 @@ body { margin: 0; background: var(--sunken); }
 .notice h2 { margin: 0 0 8px; font-family: var(--font-display); font-size: 18px; letter-spacing: -0.015em; }
 .notice p { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; line-height: 1.55; }
 .notice code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+
+/* PDF link annotations, laid over the text layer so clicks reach them. */
+.linkLayer { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.linkLayer a { position: absolute; pointer-events: auto; cursor: pointer; border-radius: 2px; }
+.linkLayer a:hover { background: rgba(90, 140, 255, 0.14); box-shadow: 0 0 0 1px rgba(90, 140, 255, 0.45); }
