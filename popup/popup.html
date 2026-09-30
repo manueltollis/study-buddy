@@ -8,10 +8,14 @@
     body { width: 292px; }
     .wrap { padding: 14px; max-width: none; }
     .masthead { margin-bottom: 12px; }
-    h1 { font-size: 15px; }
+    h1 { font-size: 19px; }
+    .masthead .dot { width: 18px; height: 11px; }
     section { padding: 12px; margin-bottom: 10px; }
     .stack { display: flex; flex-direction: column; gap: 7px; }
-    .stack button { width: 100%; text-align: left; }
+    .stack button { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; }
+    .stack button::after { content: "→"; color: var(--faint); transition: transform 120ms ease; }
+    .stack button:hover::after { color: inherit; transform: translateX(2px); }
+    .stack button.primary::after { color: inherit; }
     .keyline { font-size: 12.5px; margin-bottom: 10px; }
     .keyline.err { color: var(--danger); }
     .keyline.ok { color: var(--muted); }
@@ -39,7 +43,7 @@
 
     <section>
       <div class="stack">
-        <button id="summarize" type="button">Summarize this page</button>
+        <button id="summarize" class="primary" type="button">Summarize this page</button>
         <button id="quiz" type="button">Quiz me on this page</button>
         <button id="panel" type="button">Show / hide the panel</button>
         <button id="openPdf" type="button" style="display:none">Open this PDF in the study viewer</button>

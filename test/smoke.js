@@ -6,6 +6,8 @@
  * Launches headless Chrome with the extension loaded, stubs the Anthropic
  * endpoint inside the service worker, and drives a real selection -> answer ->
  * highlight -> follow-up flow. No API key and no network calls involved.
+ *
+ * Set SHOTS=<dir> to also save screenshots of the UI (light and dark) there.
  */
 const { spawn } = require('child_process');
 const http = require('http');
@@ -20,6 +22,18 @@ const PORT = 9333;
 const SITE_PORT = 8765;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
+const SHOTS = process.env.SHOTS ? path.resolve(process.env.SHOTS) : null;
+if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
+async function shot(client, name) {
+  if (!SHOTS) return;
+  for (const scheme of ['light', 'dark']) {
+    await client.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
+    await sleep(250);
+    const { data } = await client.send('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(path.join(SHOTS, `${name}-${scheme}.png`), Buffer.from(data, 'base64'));
+  }
+  await client.send('Emulation.setEmulatedMedia', { features: [] });
+}
 const check = (name, pass, detail) => { results.push({ name, pass, detail }); console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  \u2014 ' + detail : ''}`); };
 
 const site = http.createServer((req, res) => {
@@ -176,6 +190,7 @@ async function targets() {
   check('markdown rendered as DOM', markdown.strong === 1 && markdown.li === 2, JSON.stringify(markdown));
 
   const meta = await page.eval(`document.getElementById('claude-study-buddy-root').shadowRoot.querySelector('.thread .meta').textContent`);
+  await shot(page, 'panel');
   check('usage + cost shown', /412 in \/ 64 out/.test(meta) && /\$0\./.test(meta), JSON.stringify(meta));
 
   const req = await sw.eval(`JSON.stringify(globalThis.__req && { url: globalThis.__req.url, beta: globalThis.__req.headers['anthropic-beta'], version: globalThis.__req.headers['anthropic-version'], browserHdr: globalThis.__req.headers['anthropic-dangerous-direct-browser-access'], workspace: globalThis.__req.headers['anthropic-workspace-id'], key: globalThis.__req.headers['x-api-key'], model: globalThis.__req.body.model, stream: globalThis.__req.body.stream, effort: globalThis.__req.body.output_config && globalThis.__req.body.output_config.effort, fallbacks: globalThis.__req.body.fallbacks, thinking: globalThis.__req.body.thinking || null, maxTokens: globalThis.__req.body.max_tokens, system: globalThis.__req.body.system[0].text.slice(0, 40), user: globalThis.__req.body.messages[0].content })`);
@@ -401,6 +416,7 @@ async function targets() {
 
     const marks = await pdf.eval(`document.querySelectorAll('.textLayer mark.claude-study-highlight').length`);
     check('the PDF passage is highlighted', marks >= 1, `marks=${marks}`);
+    await shot(pdf, 'pdf');
 
     const fullText = await pdf.eval(`(window.__claudeStudyPageText && window.__claudeStudyPageText()) || ''`);
     check('whole-document text covers unrendered pages', /Rubisco/.test(fullText) && /Photosynthesis/.test(fullText), `${fullText.length} chars`);
@@ -457,6 +473,7 @@ async function targets() {
     await sleep(900);
     let value = 'threw';
     try { value = String(await client.eval(probe)); } catch (err) { value = 'threw: ' + err.message.slice(0, 80); }
+    await shot(client, path.split('/')[0]);
     const errs = client.consoleErrors();
     check(`${name} renders`, value === expect && errs.length === 0, `got ${value}, expected ${expect}${errs.length ? ' | errors: ' + errs.join(' | ').slice(0, 200) : ''}`);
     await fetch(`http://127.0.0.1:${PORT}/json/close/${target.id}`);

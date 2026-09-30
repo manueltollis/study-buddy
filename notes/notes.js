@@ -52,7 +52,7 @@ function renderNotes(list) {
           ]),
           el('div', { class: 'card__date', text: fmtDate(note.createdAt) })
         ]),
-        note.selection ? el('blockquote', { class: 'quote', text: note.selection }) : null,
+        note.selection ? el('blockquote', { class: 'quote' }, [el('span', { class: 'swipe', text: note.selection })]) : null,
         answer,
         el('div', { class: 'card__foot' }, [
           el('button', {
@@ -94,7 +94,7 @@ function renderHighlights(list) {
       .sort((a, b) => b.createdAt - a.createdAt)
       .map((item) =>
         el('div', { class: 'hl' }, [
-          el('span', { text: item.text }),
+          el('span', {}, [el('span', { class: 'swipe', text: item.text })]),
           el('button', {
             class: 'ghost danger',
             text: 'Remove',

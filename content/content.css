@@ -1,16 +1,17 @@
-/* Light-DOM styles: only the highlight marks live outside the shadow root. */
+/* Light-DOM styles: fonts for the shadow UI, plus the highlight marks. */
+@font-face { font-family: "SB Display"; src: url("chrome-extension://__MSG_@@extension_id__/fonts/bricolage.woff2") format("woff2"); font-weight: 200 800; font-display: swap; }
+@font-face { font-family: "SB Sans"; src: url("chrome-extension://__MSG_@@extension_id__/fonts/geist.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "SB Mono"; src: url("chrome-extension://__MSG_@@extension_id__/fonts/geist-mono.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+
+/* A fluorescent marker swipe: slightly ragged at the ends, like a real chisel tip. */
 mark.claude-study-highlight {
-  background: linear-gradient(transparent 55%, rgba(217, 119, 87, 0.34) 55%);
-  color: inherit;
-  padding: 0;
-  border-radius: 2px;
-  cursor: pointer;
-  transition: background 120ms ease;
+  color: inherit; padding: 0 1px; border-radius: 3px 1px 3px 1px; cursor: pointer;
+  background: linear-gradient(104deg, rgba(212, 255, 58, 0) 0.6%, rgba(212, 255, 58, 0.7) 2%, rgba(212, 255, 58, 0.5) 6%, rgba(212, 255, 58, 0.5) 94%, rgba(212, 255, 58, 0.72) 98%, rgba(212, 255, 58, 0) 99.4%) 0 62% / 100% 72% no-repeat;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  transition: background-size 140ms ease;
 }
-mark.claude-study-highlight:hover {
-  background: linear-gradient(transparent 45%, rgba(217, 119, 87, 0.5) 45%);
-}
+mark.claude-study-highlight:hover { background-size: 100% 92%; }
 mark.claude-study-highlight.claude-study-highlight--active {
-  background: rgba(217, 119, 87, 0.32);
-  box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.45);
+  background-size: 100% 96%;
+  box-shadow: 0 0 0 2px rgba(21, 20, 42, 0.85);
 }
