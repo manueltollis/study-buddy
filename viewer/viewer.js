@@ -88,7 +88,13 @@ async function renderPage(index) {
     });
     await textLayer.render();
 
-    holder.replaceChildren(canvas, textDiv);
+    // Links are a bonus; a malformed annotation must not cost the reader the page.
+    const linkDiv = await renderLinks(page, viewport).catch((error) => {
+      console.warn('Study viewer: could not lay out links', error);
+      return document.createElement('div');
+    });
+
+    holder.replaceChildren(canvas, textDiv, linkDiv);
     holder.dataset.done = 'yes';
     // Highlights saved for this document may live on a page that just appeared.
     window.__claudeStudyRestoreHighlights?.();
@@ -96,6 +102,82 @@ async function renderPage(index) {
     console.warn('Study viewer: page render failed', error);
   } finally {
     state.rendering.delete(index);
+  }
+}
+
+/**
+ * The canvas and text layer carry no links, so a PDF's link annotations get
+ * their own layer of positioned <a>s on top: web links open in a new tab,
+ * internal ones (table of contents, citations, "see page 4") scroll the viewer.
+ */
+async function renderLinks(page, viewport) {
+  const layer = document.createElement('div');
+  layer.className = 'linkLayer';
+  let annotations = [];
+  try {
+    annotations = await page.getAnnotations({ intent: 'display' });
+  } catch (error) {
+    console.warn('Study viewer: could not read links', error);
+  }
+  for (const annotation of annotations) {
+    if (annotation.subtype !== 'Link' || !annotation.rect) continue;
+    const href = annotation.url || annotation.unsafeUrl;
+    const internal = annotation.dest;
+    if (!href && !internal) continue;
+
+    const [ax, ay] = viewport.convertToViewportPoint(annotation.rect[0], annotation.rect[1]);
+    const [bx, by] = viewport.convertToViewportPoint(annotation.rect[2], annotation.rect[3]);
+    const [x1, x2] = [Math.min(ax, bx), Math.max(ax, bx)];
+    const [y1, y2] = [Math.min(ay, by), Math.max(ay, by)];
+    const a = document.createElement('a');
+    a.style.left = `${x1}px`;
+    a.style.top = `${y1}px`;
+    a.style.width = `${x2 - x1}px`;
+    a.style.height = `${y2 - y1}px`;
+    if (href) {
+      let url = null;
+      try {
+        url = new URL(href, fileUrl);
+      } catch {
+        continue;
+      }
+      if (!/^(https?|mailto):$/.test(url.protocol)) continue;
+      a.href = url.href;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.title = url.href;
+    } else {
+      a.href = '#';
+      a.addEventListener('click', (event) => {
+        event.preventDefault();
+        followDestination(internal);
+      });
+    }
+    layer.appendChild(a);
+  }
+  return layer;
+}
+
+async function followDestination(dest) {
+  try {
+    const explicit = typeof dest === 'string' ? await state.doc.getDestination(dest) : dest;
+    if (!Array.isArray(explicit)) return;
+    const target = explicit[0];
+    const index = typeof target === 'number' ? target : await state.doc.getPageIndex(target);
+    const holder = state.pages[index];
+    if (!holder) return;
+    // XYZ destinations name a spot on the page; land there rather than the page top.
+    let offset = 0;
+    if (explicit[1]?.name === 'XYZ' && typeof explicit[3] === 'number') {
+      const page = await state.doc.getPage(index + 1);
+      const [, y] = page.getViewport({ scale: state.scale }).convertToViewportPoint(0, explicit[3]);
+      offset = Math.max(0, y);
+    }
+    const bar = document.querySelector('.bar')?.offsetHeight || 0;
+    const top = holder.getBoundingClientRect().top + window.scrollY + offset - bar - 8;
+    window.scrollTo({ top, behavior: 'smooth' });
+  } catch (error) {
+    console.warn('Study viewer: could not follow link', error);
   }
 }
 

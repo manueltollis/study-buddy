@@ -9,20 +9,22 @@ endobj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
 endobj
 4 0 obj
-<< /Length 412 >>
+<< /Length 565 >>
 stream
 BT /F1 20 Tf 72 720 Td (Photosynthesis) Tj ET
 BT /F1 12 Tf 72 668 Td (Photosynthesis is the process by which plants convert light energy) Tj ET
 BT /F1 12 Tf 72 642 Td (into chemical energy stored in glucose. The light-dependent reactions) Tj ET
 BT /F1 12 Tf 72 616 Td (occur in the thylakoid membrane, where chlorophyll absorbs photons) Tj ET
 BT /F1 12 Tf 72 590 Td (and drives the transfer of electrons.) Tj ET
+BT /F1 12 Tf 72 550 Td (Further reading: https://example.org/photosynthesis) Tj ET
+BT /F1 12 Tf 72 524 Td (Continue to the Calvin cycle on page 2.) Tj ET
 endstream
 endobj
 5 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R /Annots [8 0 R 9 0 R] >>
 endobj
 6 0 obj
-<< /Length 324 >>
+<< /Length 323 >>
 stream
 BT /F1 20 Tf 72 720 Td (The Calvin cycle) Tj ET
 BT /F1 12 Tf 72 668 Td (The Calvin cycle fixes carbon dioxide into three-carbon sugars using) Tj ET
@@ -33,18 +35,26 @@ endobj
 7 0 obj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>
 endobj
+8 0 obj
+<< /Type /Annot /Subtype /Link /Rect [72 545 380 563] /Border [0 0 0] /A << /S /URI /URI (https://example.org/photosynthesis) >> >>
+endobj
+9 0 obj
+<< /Type /Annot /Subtype /Link /Rect [72 519 300 537] /Border [0 0 0] /Dest [7 0 R /XYZ 72 740 null] >>
+endobj
 xref
-0 8
+0 10
 0000000000 65535 f 
 0000000009 00000 n 
 0000000058 00000 n 
 0000000121 00000 n 
 0000000191 00000 n 
-0000000653 00000 n 
-0000000779 00000 n 
-0000001153 00000 n 
+0000000807 00000 n 
+0000000955 00000 n 
+0000001329 00000 n 
+0000001455 00000 n 
+0000001602 00000 n 
 trailer
-<< /Size 8 /Root 1 0 R >>
+<< /Size 10 /Root 1 0 R >>
 startxref
-1279
+1721
 %%EOF
