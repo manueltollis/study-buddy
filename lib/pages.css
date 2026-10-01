@@ -20,16 +20,15 @@
   --grid: rgba(21, 20, 42, 0.06);
   --shadow: 0 1px 0 rgba(21, 20, 42, 0.04), 0 10px 30px -14px rgba(21, 20, 42, 0.22);
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --surface: #14141f; --sunken: #0d0d15; --text: #ecebf4; --muted: #a3a2b8; --faint: #6d6c84;
-    --line: #262636; --line-strong: #37374b; --hover: #1d1d2b; --code-bg: #1d1d2b;
-    --accent: #d4ff3a; --accent-ink: #15142a;
-    --primary-bg: var(--marker); --primary-ink: var(--ink);
-    --danger: #ff7a8e; --ok: #6fe0a4;
-    --grid: rgba(236, 235, 244, 0.05);
-    --shadow: 0 1px 0 rgba(255, 255, 255, 0.03), 0 14px 34px -16px rgba(0, 0, 0, 0.7);
-  }
+/* lib/theme.js resolves the user's choice (or the system's) to data-theme on <html>. */
+:root[data-theme="dark"] {
+  --surface: #14141f; --sunken: #0d0d15; --text: #ecebf4; --muted: #a3a2b8; --faint: #6d6c84;
+  --line: #262636; --line-strong: #37374b; --hover: #1d1d2b; --code-bg: #1d1d2b;
+  --accent: #d4ff3a; --accent-ink: #15142a;
+  --primary-bg: var(--marker); --primary-ink: var(--ink);
+  --danger: #ff7a8e; --ok: #6fe0a4;
+  --grid: rgba(236, 235, 244, 0.05);
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03), 0 14px 34px -16px rgba(0, 0, 0, 0.7);
 }
 
 * { box-sizing: border-box; }

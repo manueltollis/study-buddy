@@ -25,6 +25,7 @@
   const PANEL_ACTIONS = ['explain', 'simplify', 'keypoints', 'example', 'terms', 'quiz'];
 
   const settings = {
+    theme: 'auto',
     bubbleEnabled: true,
     autoHighlight: true,
     contextChars: 1500
@@ -88,12 +89,24 @@
     chrome.storage.local.get('settings', (stored) => {
       if (chrome.runtime.lastError) return;
       Object.assign(settings, stored.settings || {});
+      applyTheme();
     });
   }
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.settings) Object.assign(settings, changes.settings.newValue || {});
+    if (area !== 'local' || !changes.settings) return;
+    Object.assign(settings, changes.settings.newValue || {});
+    applyTheme();
   });
+
+  /** The panel follows the Theme setting; 'auto' tracks the system as it changes. */
+  const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
+  function applyTheme() {
+    if (!state.host) return;
+    const dark = settings.theme === 'dark' || (settings.theme !== 'light' && systemDark.matches);
+    state.host.dataset.theme = dark ? 'dark' : 'light';
+  }
+  systemDark.addEventListener('change', applyTheme);
 
   /* ------------------------------------------------------ text indexing */
 
@@ -512,14 +525,12 @@
       --input-bg: #ffffff; --accent: #2c46ef; --primary-bg: #15142a; --primary-ink: #d4ff3a;
       --danger: #d02f4a; --danger-bg: #fdeef1;
     }
-    @media (prefers-color-scheme: dark) {
-      :host {
-        --marker-soft: rgba(212, 255, 58, 0.3);
-        --surface: #14141f; --text: #ecebf4; --muted: #a3a2b8; --faint: #6d6c84;
-        --line: #262636; --line-strong: #37374b; --hover: #1d1d2b; --quote-bg: #1b1b28; --code-bg: #1d1d2b;
-        --input-bg: #101019; --accent: #d4ff3a; --primary-bg: #d4ff3a; --primary-ink: #15142a;
-        --danger: #ff7a8e; --danger-bg: #331820;
-      }
+    :host([data-theme="dark"]) {
+      --marker-soft: rgba(212, 255, 58, 0.3);
+      --surface: #14141f; --text: #ecebf4; --muted: #a3a2b8; --faint: #6d6c84;
+      --line: #262636; --line-strong: #37374b; --hover: #1d1d2b; --quote-bg: #1b1b28; --code-bg: #1d1d2b;
+      --input-bg: #101019; --accent: #d4ff3a; --primary-bg: #d4ff3a; --primary-ink: #15142a;
+      --danger: #ff7a8e; --danger-bg: #331820;
     }
   `;
 
@@ -591,6 +602,7 @@
     (document.body || document.documentElement).appendChild(host);
 
     state.host = host;
+    applyTheme();
     state.shadow = shadow;
     state.bubble = bubble;
     state.panel = panel;

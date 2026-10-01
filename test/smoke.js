@@ -193,6 +193,19 @@ async function targets() {
   await shot(page, 'panel');
   check('usage + cost shown', /412 in \/ 64 out/.test(meta) && /\$0\./.test(meta), JSON.stringify(meta));
 
+  // Theme setting overrides the system scheme in both directions, live.
+  const setTheme = (theme) => sw.eval(`chrome.storage.local.get('settings').then(({ settings }) => chrome.storage.local.set({ settings: { ...settings, theme: '${theme}' } }))`);
+  const hostTheme = () => page.eval(`document.getElementById('claude-study-buddy-root').dataset.theme`);
+  const seen = [];
+  for (const [system, theme] of [['light', 'dark'], ['dark', 'light'], ['dark', 'auto'], ['light', 'auto']]) {
+    await page.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: system }] });
+    await setTheme(theme);
+    await sleep(250);
+    seen.push(`${system}+${theme}=${await hostTheme()}`);
+  }
+  await page.send('Emulation.setEmulatedMedia', { features: [] });
+  check('theme setting drives the panel', seen.join(',') === 'light+dark=dark,dark+light=light,dark+auto=dark,light+auto=light', seen.join(','));
+
   const req = await sw.eval(`JSON.stringify(globalThis.__req && { url: globalThis.__req.url, beta: globalThis.__req.headers['anthropic-beta'], version: globalThis.__req.headers['anthropic-version'], browserHdr: globalThis.__req.headers['anthropic-dangerous-direct-browser-access'], workspace: globalThis.__req.headers['anthropic-workspace-id'], key: globalThis.__req.headers['x-api-key'], model: globalThis.__req.body.model, stream: globalThis.__req.body.stream, effort: globalThis.__req.body.output_config && globalThis.__req.body.output_config.effort, fallbacks: globalThis.__req.body.fallbacks, thinking: globalThis.__req.body.thinking || null, maxTokens: globalThis.__req.body.max_tokens, system: globalThis.__req.body.system[0].text.slice(0, 40), user: globalThis.__req.body.messages[0].content })`);
   const parsed = JSON.parse(req || 'null');
   check('request shape correct', parsed && parsed.url === 'https://api.anthropic.com/v1/messages' && parsed.model === 'claude-opus-5' && parsed.stream === true && parsed.effort === 'medium' && parsed.fallbacks === 'default' && parsed.beta === 'server-side-fallback-2026-07-01' && parsed.version === '2023-06-01' && parsed.browserHdr === 'true' && parsed.thinking === null && parsed.maxTokens === 1200 && parsed.workspace === 'wrkspc_01TEST',
@@ -484,8 +497,10 @@ async function targets() {
   for (const [name, path, probe, expect] of [
     ['options page', 'options/options.html', `document.getElementById('provider').options.length + ':' + document.getElementById('model').options.length + ':' + document.getElementById('effort').options.length + ':' + /questions per \\$1/.test(document.getElementById('priceHint').textContent)`, '4:3:5:true'],
     ['notes page', 'notes/notes.html', `document.querySelectorAll('.card').length + ':' + (document.querySelector('.answer strong') ? 'md' : 'nomd')`, '1:md'],
-    ['popup', 'popup/popup.html', `document.querySelectorAll('button').length > 4 ? 'ok' : 'thin'`, 'ok']
+    ['popup', 'popup/popup.html', `document.querySelectorAll('button').length > 4 ? 'ok' : 'thin'`, 'ok'],
+    ['pinned dark theme', 'notes/notes.html', `document.documentElement.dataset.theme + ':' + getComputedStyle(document.body).backgroundColor`, 'dark:rgb(13, 13, 21)']
   ]) {
+    if (name === 'pinned dark theme') await setTheme('dark');
     if (name === 'notes page') {
       await sw.eval(`chrome.storage.local.set({ notes: [{ id: 'n1', url: 'http://localhost:8765/', title: 'Photosynthesis', selection: 'light-dependent reactions', question: 'Explain', answer: '**Light** reactions make ATP.', createdAt: Date.now() }] })`);
     }
@@ -495,7 +510,7 @@ async function targets() {
     await sleep(900);
     let value = 'threw';
     try { value = String(await client.eval(probe)); } catch (err) { value = 'threw: ' + err.message.slice(0, 80); }
-    await shot(client, path.split('/')[0]);
+    if (name !== 'pinned dark theme') await shot(client, path.split('/')[0]);
     const errs = client.consoleErrors();
     check(`${name} renders`, value === expect && errs.length === 0, `got ${value}, expected ${expect}${errs.length ? ' | errors: ' + errs.join(' | ').slice(0, 200) : ''}`);
     await fetch(`http://127.0.0.1:${PORT}/json/close/${target.id}`);

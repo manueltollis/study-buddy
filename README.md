@@ -139,6 +139,7 @@ text in the file to select.
   is for genuinely hard passages. Ignored on Haiku.
 - **Explain at this level** — keep it simple / student / expert. This changes the tone and depth
   of every answer.
+- **Theme** — Automatic (follows your system), Light or Dark, for the panel and every extension page.
 - **Open PDFs in the study viewer** — on by default; turn it off to leave PDFs to Chrome.
 - **Surrounding context** — how much nearby page text rides along with the passage so the model can
   resolve pronouns and references. Set to 0 to send the passage alone.

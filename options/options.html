@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <title>Study Buddy — Settings</title>
   <link rel="stylesheet" href="../lib/pages.css" />
+  <script src="../lib/theme.js"></script>
 </head>
 <body>
   <div class="wrap">
@@ -112,6 +113,15 @@
 
     <section>
       <h2>Reading</h2>
+      <div class="field">
+        <label class="lab" for="theme">Theme</label>
+        <select id="theme">
+          <option value="auto">Automatic — match my system</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+        <p class="hint">Applies to the panel on pages, the popup, notes, settings and the PDF viewer.</p>
+      </div>
       <div class="check">
         <input type="checkbox" id="bubbleEnabled" />
         <div>
