@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      dry_run:
+        description: Only build the zip, don't upload or push
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Bump version
+        id: version
+        run: |
+          current=$(jq -r .version manifest.json)
+          IFS=. read -r major minor patch <<< "$current"
+          case "${{ inputs.bump }}" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+          next="$major.$minor.$patch"
+          sed -i "s/\"version\": \"$current\"/\"version\": \"$next\"/" manifest.json
+          [ "$(jq -r .version manifest.json)" = "$next" ] || { echo "Failed to update manifest.json"; exit 1; }
+          echo "$current -> $next"
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+
+      - name: Build zip
+        run: |
+          zip -r "study-buddy-${{ steps.version.outputs.version }}.zip" \
+            manifest.json background content fonts icons lib notes options popup viewer \
+            -x '*.DS_Store'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: study-buddy-${{ steps.version.outputs.version }}
+          path: study-buddy-${{ steps.version.outputs.version }}.zip
+
+      - name: Upload to Chrome Web Store and submit for review
+        if: ${{ !inputs.dry_run }}
+        run: npx --yes chrome-webstore-upload-cli@3 upload --source "study-buddy-${{ steps.version.outputs.version }}.zip" --auto-publish
+        env:
+          EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+
+      - name: Commit, tag and create GitHub release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Release v$VERSION"
+          git tag "v$VERSION"
+          git push origin main "v$VERSION"
+          gh release create "v$VERSION" "study-buddy-$VERSION.zip" --generate-notes

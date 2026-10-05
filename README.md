@@ -186,6 +186,16 @@ flow, plus the options, notes, and popup pages. No API key or network access nee
 
 After editing files, hit the reload icon on `chrome://extensions` and refresh open tabs.
 
+### Releasing
+
+Run the **Release** workflow from the Actions tab and pick `patch`, `minor`, or `major`. It bumps
+the version in `manifest.json`, uploads the zip to the Chrome Web Store, submits it for review,
+then commits the bump, tags `vX.Y.Z`, and creates a GitHub release with the zip attached. Tick
+**dry run** to only build the zip (downloadable from the run's artifacts).
+
+It needs these repository secrets: `CWS_EXTENSION_ID`, `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`,
+and `CWS_REFRESH_TOKEN` (`npx chrome-webstore-upload-keys` walks through creating them).
+
 ## Limits
 
 - Chrome blocks content scripts on `chrome://` pages, the Web Store, and other extensions' pages.
