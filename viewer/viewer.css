@@ -1,5 +1,5 @@
 /* Study viewer: canvas render + pdf.js text layer, so selection behaves like a web page. */
-html, body { height: 100%; }
+html, body { min-height: 100%; }
 body { margin: 0; background: var(--sunken); }
 
 .bar {
