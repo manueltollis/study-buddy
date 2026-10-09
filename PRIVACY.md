@@ -1,6 +1,6 @@
 # Study Buddy — Privacy Policy
 
-_Last updated: September 30, 2026_
+_Last updated: October 9, 2026_
 
 Study Buddy is a Chrome extension that explains text you highlight on web pages and PDFs using an AI
 model from a provider you choose. This policy explains what data the extension handles and where it
@@ -36,6 +36,15 @@ The extension also makes these requests, which carry no personal data beyond the
   a lightweight `HEAD` request to that same site to check the file type.
 - If you use OpenRouter, the Settings page can download OpenRouter's public list of models.
 
+## Obsidian vault (optional)
+
+If you connect an Obsidian vault in Settings, the extension talks to the Local REST API plugin running
+in Obsidian on your own computer (by default `127.0.0.1`), using the plugin's API key you entered.
+When a note is filed, the extension sends the AI provider you selected the saved answer, the passage,
+the page's title and address, and the vault content needed to file it: folder listings, search
+results, and the text of notes it reads. The changes are written only to your vault. This happens when
+you save an answer with automatic filing turned on, or when you file a note from the study notes page.
+
 ## What is stored on your device
 
 The following is kept in your browser's extension storage (`chrome.storage.local`). It is never sent
@@ -44,7 +53,9 @@ to the developer:
 - your settings, including your API keys;
 - the passages you highlighted and the address of the page each one is on, so highlights reappear
   when you return;
-- answers you chose to save as notes.
+- answers you chose to save as notes;
+- if you use the Obsidian vault, a record of each filing, including the earlier text of any note it
+  changed, so the change can be undone.
 
 You can delete highlights and notes at any time from Settings → Data. Uninstalling the extension
 deletes everything it stored.

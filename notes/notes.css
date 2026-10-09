@@ -40,7 +40,12 @@
 .answer pre code { background: none; padding: 0; }
 .answer a { color: var(--accent); }
 .answer hr { border: 0; border-top: 1px dashed var(--line-strong); margin: 14px 0; }
-.card__foot { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); display: flex; gap: 6px; }
+.card__foot { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.vault { font: 11.5px var(--font-mono); color: var(--muted); padding: 0 6px; min-width: 0; overflow-wrap: anywhere; }
+.vault--ok { color: var(--ok); }
+.vault--err { color: var(--danger); }
+.vault--busy { color: var(--accent); }
+.vault--muted { color: var(--faint); }
 
 .group {
   margin-bottom: 14px; background: var(--surface); border: 1px solid var(--line);

@@ -157,6 +157,32 @@ text in the file to select.
 `☰` in the panel (or *Notes* in the popup) opens the study-notes page: everything you saved,
 everything you highlighted, grouped by page, searchable, and exportable as one Markdown file.
 
+## Obsidian vault (prototype)
+
+A librarian agent can file your saved answers into an [Obsidian](https://obsidian.md) vault. For each
+note it looks at what's already in the vault, puts the answer in the right topic note (creating it if
+needed), links related notes with `[[wikilinks]]`, and keeps a source note per page and a
+`_index.md` map of contents.
+
+Setup:
+
+1. In Obsidian, install the community plugin **Local REST API**, and in its settings turn on
+   **Enable Non-encrypted (HTTP) Server**. Its HTTPS port uses a self-signed certificate that Chrome
+   won't trust from an extension.
+2. In Study Buddy's settings, under **Obsidian vault**, paste the plugin's API key and hit **Connect**.
+3. Turn on **File every saved answer in the vault**, or file notes one at a time from the study notes
+   page. Each note there shows where it was filed, with **Undo**.
+
+Obsidian has to be open while filing. The librarian uses the current provider and key; a separate,
+cheaper model can be set for it, but very small models are unreliable at tool use.
+
+Page text reaches the model, so the limits are enforced in code rather than left to the prompt: the
+librarian can create and rewrite notes only inside its own folder (`Study Buddy/` by default), can
+only append to notes elsewhere and only if you allow it, can never delete, and stops after 8 writes per
+note. Every write records the file's previous text, so **Undo** restores it exactly, skipping any file
+you've edited since. It reads and searches the whole vault to find related notes, so parts of your
+notes are sent to the model provider while filing.
+
 ## Layout
 
 ```
@@ -167,10 +193,13 @@ content/content.css            highlight marks (the only styles in the page's DO
 viewer/                        pdf.js-based PDF viewer (canvas + selectable text layer)
 lib/pdfjs/                     vendored pdf.js 6.3.289 (Apache-2.0)
 lib/config.js                  providers, settings, model + price tables, prompts
+lib/librarian.js               Obsidian filing agent: tools, guardrails, undo
+lib/vault.js                   client for the Obsidian Local REST API plugin
 lib/markdown.js                DOM-building Markdown renderer (no innerHTML)
 lib/pages.css                  shared styles for the extension's own pages
 options/  popup/  notes/       settings, toolbar popup, study notes
 test/smoke.js                  end-to-end test
+test/librarian.test.mjs        librarian against a fake vault and a scripted model
 ```
 
 The panel lives in a shadow root, so page CSS can't reach it and its styles can't leak out. Model
@@ -181,6 +210,7 @@ be scripted through an answer.
 
 ```bash
 node test/smoke.js
+node test/librarian.test.mjs
 ```
 
 Launches headless Chrome with the extension loaded, stubs the Anthropic endpoint inside the

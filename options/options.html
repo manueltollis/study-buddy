@@ -162,6 +162,60 @@
     </section>
 
     <section>
+      <h2>Obsidian vault</h2>
+      <p class="hint">
+        A librarian agent files your saved answers into an Obsidian vault: it looks at what's already there, puts each
+        answer in the right topic note, and links it to related notes. It uses the provider and key above.
+      </p>
+      <p class="hint">
+        Setup: in Obsidian, install the community plugin <b>Local REST API</b>, turn on
+        <b>Enable Non-encrypted (HTTP) Server</b> in its settings, and copy its API key here. Obsidian has to be open
+        for filing to work.
+      </p>
+      <div class="grid2">
+        <div class="field">
+          <label class="lab" for="vaultUrl">Plugin address</label>
+          <input type="text" id="vaultUrl" placeholder="http://127.0.0.1:27123" spellcheck="false" />
+        </div>
+        <div class="field">
+          <label class="lab" for="vaultFolder">Librarian's folder</label>
+          <input type="text" id="vaultFolder" placeholder="Study Buddy" spellcheck="false" />
+        </div>
+      </div>
+      <div class="field">
+        <label class="lab" for="vaultKey">Plugin API key</label>
+        <div class="row">
+          <input type="password" id="vaultKey" autocomplete="off" spellcheck="false" />
+          <button id="vaultTest" type="button">Connect</button>
+        </div>
+        <div class="status" id="vaultStatus"></div>
+      </div>
+      <div class="field">
+        <label class="lab" for="vaultModel">Librarian model <span style="font-weight:400;color:var(--faint)">— optional</span></label>
+        <input type="text" id="vaultModel" placeholder="same as answers" spellcheck="false" />
+        <p class="hint">A model id on the current provider. Filing takes several tool calls per note, so a cheaper capable model (e.g. Sonnet) is a good fit. Very small or free models often get tool use wrong.</p>
+      </div>
+      <div class="check">
+        <input type="checkbox" id="vaultAutoFile" />
+        <div>
+          <div class="lab">File every saved answer in the vault</div>
+          <p class="hint">Runs in the background after an answer is saved. Off: file notes one by one from the study notes page.</p>
+        </div>
+      </div>
+      <div class="check">
+        <input type="checkbox" id="vaultAppendOutside" />
+        <div>
+          <div class="lab">Let it add to my existing notes outside its folder</div>
+          <p class="hint">It can only append, never rewrite or delete, and every change can be undone. Off: everything outside its folder is read-only to it.</p>
+        </div>
+      </div>
+      <p class="hint">
+        The librarian reads and searches the whole vault to find related notes, so parts of your notes are sent to the
+        model provider while filing.
+      </p>
+    </section>
+
+    <section>
       <h2>Data</h2>
       <div class="row">
         <button id="openNotes" type="button">Open study notes</button>
