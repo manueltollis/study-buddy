@@ -1074,8 +1074,12 @@
       parts = [el('span', { text: `Obsidian · failed: ${entry.error || 'unknown error'}`, title: entry.error || '' }), retry('Retry')];
     }
 
+    // The line fills in after the answer has scrolled into view; keep a reader at the bottom there.
+    const thread = state.ui && state.ui.thread;
+    const atBottom = thread && thread.scrollHeight - thread.scrollTop - thread.clientHeight < 48;
     line.className = 'vault' + (kind ? ` vault--${kind}` : '');
     line.replaceChildren(...parts.filter(Boolean));
+    if (atBottom) scrollToEnd();
     if (kind === 'busy') {
       clearTimeout(stallTimer);
       stallTimer = setTimeout(renderFilings, 30000);
