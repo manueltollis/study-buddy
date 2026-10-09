@@ -46,6 +46,10 @@
 .vault--err { color: var(--danger); }
 .vault--busy { color: var(--accent); }
 .vault--muted { color: var(--faint); }
+.next { margin-top: 12px; font-size: 13px; }
+.next ul { margin: 0; padding-left: 20px; }
+.next li { margin: 2px 0; }
+.next li span { color: var(--muted); }
 
 .group {
   margin-bottom: 14px; background: var(--surface); border: 1px solid var(--line);

@@ -182,7 +182,10 @@ for (const wire of ['anthropic', 'openai']) {
 }
 
 await test('appending outside the folder works when allowed, and undo skips edited files', async () => {
-  const files = new Map([['Biology/Mitochondria.md', '# Mitochondria\n\nThe powerhouse.\n\n## Links\n- [[Cell]]\n\n## Notes\nOld.\n']]);
+  const files = new Map([
+    ['Biology/Mitochondria.md', '# Mitochondria\n\nThe powerhouse.\n\n## Links\n- [[Cell]]\n\n## Notes\nOld.\n'],
+    [TOPIC, TOPIC_TEXT]
+  ]);
   const vault = createVault({ key: KEY, fetchImpl: fakeObsidian(files).fetchImpl });
   const model = scriptedModel('anthropic', [
     { calls: [['append_to_note', { path: 'Biology/Mitochondria.md', heading: 'Links', content: '- [[ATP synthase]]' }]] },
@@ -195,6 +198,48 @@ await test('appending outside the folder works when allowed, and undo skips edit
   const undone = await undoOps(vault, result.ops);
   assert.deepEqual(undone, { undone: 0, skipped: ['Biology/Mitochondria.md'] });
   assert.match(files.get('Biology/Mitochondria.md'), /My own edit/);
+});
+
+await test('links to missing notes become plain text; suggestions are kept', async () => {
+  const files = new Map([['Biology/Mitochondria.md', '# Mitochondria\n\nMy own dangling [[My idea]].\n']]);
+  const original = new Map(files);
+  const vault = createVault({ key: KEY, fetchImpl: fakeObsidian(files).fetchImpl });
+  const source = 'Study Buddy/Sources/How cells make energy';
+  const model = scriptedModel('anthropic', [
+    {
+      calls: [[
+        'create_note',
+        {
+          path: TOPIC,
+          // The source note is only created later in the filing; its link must survive.
+          content: `See [[Mitochondria]], [[Krebs cycle]], [[Proton motive force|the gradient]], [[${source}]], [[#Local]] and ![[diagram.png]].\n`
+        }
+      ]]
+    },
+    { calls: [['append_to_note', { path: 'Biology/Mitochondria.md', content: '- [[ATP synthase]] and [[Electron transport chain]]' }]] },
+    { calls: [['create_note', { path: `${source}.md`, content: '# Source\n- [[ATP synthase]]\n' }]] },
+    {
+      calls: [[
+        'suggest_next',
+        { topics: [{ name: '[[Krebs cycle]]', why: 'feeds the chain' }, { name: 'krebs cycle' }, { name: 'Electron transport chain', why: 'builds the gradient' }] }
+      ]]
+    },
+    { text: 'Filed.' }
+  ]);
+
+  const result = await fileNote({ note: NOTE, vault, complete: model.complete, wire: 'anthropic', folder: 'Study Buddy', appendOutside: true });
+
+  assert.equal(files.get(TOPIC), `See [[Mitochondria]], Krebs cycle, the gradient, [[${source}]], [[#Local]] and ![[diagram.png]].\n`);
+  assert.equal(files.get('Biology/Mitochondria.md'), '# Mitochondria\n\nMy own dangling [[My idea]].\n\n- [[ATP synthase]] and Electron transport chain\n', 'the reader\'s own link is kept');
+  assert.deepEqual([...result.unlinked].sort(), ['Electron transport chain', 'Krebs cycle', 'Proton motive force']);
+  assert.deepEqual(result.suggestions, [
+    { name: 'Krebs cycle', why: 'feeds the chain' },
+    { name: 'Electron transport chain', why: 'builds the gradient' }
+  ]);
+  assert.deepEqual(result.ops.map((op) => op.kind), ['create', 'append', 'create', 'rewrite', 'rewrite']);
+
+  assert.deepEqual(await undoOps(vault, result.ops), { undone: 5, skipped: [] });
+  assert.deepEqual([...files].sort(), [...original].sort(), 'vault back to how it was');
 });
 
 await test('a bad key stops filing instead of looping', async () => {

@@ -481,6 +481,8 @@ async function fileOne(noteId) {
       step: '',
       summary: result.summary,
       ops: result.ops,
+      suggestions: result.suggestions,
+      unlinked: result.unlinked,
       model,
       cost: estimateCost(model, result.usage, settings)
     });

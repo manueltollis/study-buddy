@@ -606,7 +606,8 @@ async function targets() {
       const script = [
         [['list_folder', { path: 'Study Buddy' }]],
         [['create_note', { path: 'Study Buddy/Biology/Light reactions.md', content: '# Light reactions\\n\\nMake ATP. See [[Photosynthesis]].\\n' }],
-         ['append_to_note', { path: 'Biology/Photosynthesis.md', content: 'pwned' }]]
+         ['append_to_note', { path: 'Biology/Photosynthesis.md', content: 'pwned' }]],
+        [['suggest_next', { topics: [{ name: 'Calvin cycle', why: 'where the ATP goes' }] }]]
       ];
       const calls = script[(body.messages.length - 1) / 2] || [];
       const content = calls.length
@@ -627,7 +628,7 @@ async function targets() {
   check('a saved answer is filed into the vault', filing.status === 'filed' && vaultFiles.has('Study Buddy/Biology/Light reactions.md'),
     JSON.stringify({ status: filing.status, error: filing.error, files: [...vaultFiles.keys()] }));
   check('the librarian cannot touch notes outside its folder', vaultFiles.get('Biology/Photosynthesis.md') === '# Photosynthesis\n', vaultCalls.filter((c) => !c.startsWith('GET')).join(', '));
-  check('the librarian uses its own model, quietly', libReq.length === 3 && libReq.every((r) => r.model === 'claude-sonnet-5' && r.effort === 'low' && !r.thinking && !r.stream && r.tools === 6), JSON.stringify(libReq[0]));
+  check('the librarian uses its own model, quietly', libReq.length === 4 && libReq.every((r) => r.model === 'claude-sonnet-5' && r.effort === 'low' && !r.thinking && !r.stream && r.tools === 7), JSON.stringify(libReq[0]));
 
   {
     const target = await fetch(`http://127.0.0.1:${PORT}/json/new?chrome-extension://${extId}/notes/notes.html`, { method: 'PUT' }).then((r) => r.json());
@@ -636,6 +637,8 @@ async function targets() {
     await sleep(900);
     const shown = await client.eval(`document.querySelector('.vault') ? document.querySelector('.vault').textContent : ''`);
     check('the notes page shows where a note was filed', shown === 'In vault: Study Buddy/Biology/Light reactions.md', JSON.stringify(shown));
+    const next = await client.eval(`[...document.querySelectorAll('.next li')].map((li) => li.textContent).join(' | ')`);
+    check('the notes page shows what to study next', next === 'Calvin cycle — where the ATP goes', JSON.stringify(next));
     await client.eval(`[...document.querySelectorAll('.card__foot button')].find((b) => b.textContent === 'Undo').click(); 'clicked'`);
     await sleep(900);
     const after = await client.eval(`document.querySelector('.vault') ? document.querySelector('.vault').textContent : ''`);

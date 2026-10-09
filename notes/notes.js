@@ -77,10 +77,27 @@ function renderNotes(list) {
               load();
             }
           })
-        ])
+        ]),
+        studyNext(note)
       ])
     );
   }
+}
+
+/** What the librarian thinks is worth looking into after this note. */
+function studyNext(note) {
+  const entry = state.vault[note.id];
+  if (entry?.status !== 'filed' || !entry.suggestions?.length) return null;
+  return el('div', { class: 'next' }, [
+    el('div', { class: 'ask', text: 'Study next' }),
+    el(
+      'ul',
+      {},
+      entry.suggestions.map((topic) =>
+        el('li', {}, [el('b', { text: topic.name }), topic.why ? el('span', { text: ` — ${topic.why}` }) : null])
+      )
+    )
+  ]);
 }
 
 /** Where the librarian has got to with a note, and what can be done about it. */

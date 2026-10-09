@@ -164,6 +164,11 @@ note it looks at what's already in the vault, puts the answer in the right topic
 needed), links related notes with `[[wikilinks]]`, and keeps a source note per page and a
 `_index.md` map of contents.
 
+It only links notes that exist. A concept that deserves a note but has none yet is suggested instead:
+it shows as **Study next** under the note on the study notes page, and in a `## Study next` list in
+`_index.md`. When it finishes, any link it wrote to a missing note (which in Obsidian would create an
+empty page when clicked) is turned back into plain text. Links you wrote yourself are left alone.
+
 Setup:
 
 1. In Obsidian, install the community plugin **Local REST API**, and in its settings turn on
