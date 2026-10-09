@@ -355,6 +355,45 @@ async function targets() {
   const restored = await page.eval(`document.querySelectorAll('mark.claude-study-highlight').length`);
   check('highlights restored after reload', restored >= 1, `marks=${restored}`);
 
+  // clicking a highlight brings back the conversation it had, and the thread carries on from there
+  const conversation = `(() => {
+    const shadow = document.getElementById('claude-study-buddy-root').shadowRoot;
+    return {
+      asked: [...shadow.querySelectorAll('.turn--user')].map((t) => t.textContent),
+      answers: [...shadow.querySelectorAll('.turn .body')].map((b) => b.textContent.slice(0, 30)),
+      meta: (shadow.querySelector('.turn .meta') || {}).textContent || '',
+      notes: [...shadow.querySelectorAll('.turn .meta button:last-of-type')].map((b) => b.textContent)
+    };
+  })()`;
+  await page.eval(`document.querySelector('mark.claude-study-highlight').click(); 'reopen'`);
+  await sleep(500);
+  const reopened = await page.eval(conversation);
+  check('clicking a highlight brings its conversation back',
+    reopened.asked.join('|') === 'Explain|What is NADPH doing here?|Simpler|Example|Define terms' &&
+    reopened.answers.length === 5 && reopened.answers[0].startsWith('Photosynthesis converts light') && /412 in \/ 64 out/.test(reopened.meta),
+    JSON.stringify(reopened).slice(0, 160));
+  // Define terms came in while auto-save was off; the others' text is still in the notes.
+  check('reopened answers show whether they are in the notes',
+    reopened.notes.join('|') === 'Saved ✓|Saved ✓|Saved ✓|Saved ✓|Save note', JSON.stringify(reopened.notes));
+  await page.eval(`(() => {
+    const shadow = document.getElementById('claude-study-buddy-root').shadowRoot;
+    shadow.querySelector('.composer textarea').value = 'And where does the ATP come from?';
+    shadow.querySelector('.send').click();
+    return 'sent';
+  })()`);
+  await sleep(1200);
+  const resumed = JSON.parse(await sw.eval(`JSON.stringify(globalThis.__req.body.messages.map(m => m.role + ':' + m.content.slice(0, 26)))`));
+  check('a reopened conversation continues with its history',
+    resumed.length === 11 && resumed[0].startsWith('user:Page: Photosynthesis') && resumed[10].startsWith('user:And where does the ATP'),
+    `${resumed.length} messages, last ${JSON.stringify(resumed[resumed.length - 1])}`);
+  const hlId = await page.eval(`document.querySelector('mark.claude-study-highlight').dataset.hlId`);
+  const chatKey = JSON.stringify('chat:' + hlId);
+  const keptTurns = await sw.eval(`chrome.storage.local.get(${chatKey}).then((s) => (s[${chatKey}] || []).length)`);
+  await page.eval(`document.querySelector('mark.claude-study-highlight').dispatchEvent(new MouseEvent('click', { bubbles: true, altKey: true })); 'remove'`);
+  await sleep(300);
+  const leftTurns = await sw.eval(`chrome.storage.local.get(${chatKey}).then((s) => (s[${chatKey}] || []).length)`);
+  check('removing a highlight drops its conversation', keptTurns === 6 && leftTurns === 0, `stored ${keptTurns}, after Alt-click ${leftTurns}`);
+
   // long selection exposes the quote expander
   await page.eval(`(() => {
     const range = document.createRange();
@@ -491,6 +530,13 @@ async function targets() {
       restoredMarks = await pdf.eval(`document.querySelectorAll('.textLayer mark.claude-study-highlight').length`).catch(() => 0);
     }
     check('PDF highlights survive a reload', restoredMarks >= 1, `marks=${restoredMarks}`);
+
+    await pdf.eval(`document.querySelector('.textLayer mark.claude-study-highlight').click(); 'reopen'`);
+    await sleep(500);
+    const pdfChat = await pdf.eval(conversation);
+    check('reopening a PDF highlight shows its conversation',
+      pdfChat.asked.join('|') === 'Explain' && pdfChat.answers.length === 1 && pdfChat.answers[0].startsWith('Photosynthesis converts light'),
+      JSON.stringify(pdfChat).slice(0, 120));
 
     const stored = await sw.eval(`chrome.storage.local.get('highlights').then(s => Object.keys(s.highlights).join(','))`);
     check('PDF highlights are keyed by the document, not the viewer', stored.includes('/fixture.pdf'), stored);

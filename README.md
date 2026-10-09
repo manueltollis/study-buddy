@@ -87,7 +87,8 @@ empty.
   typed questions mix freely in one conversation.
 - **PDFs work too** — papers open in the extension's own viewer, where text is selectable. See below.
 - **Highlights** — any passage you ask about is highlighted, and comes back the next time you open
-  the page. Click a highlight to reopen it; **Alt-click** to remove it.
+  the page. Click a highlight to reopen it with the whole conversation you had about it, and keep
+  asking; **Alt-click** to remove it (and its conversation).
 - **Notes** — every answer is filed in your study notes (`☰` in the panel header) as it arrives, so
   nothing is lost when you close the page. Click **Saved ✓** under an answer to take it back out.
 - **Whole page** — from the toolbar popup: *Summarize this page* or *Quiz me on the page*.

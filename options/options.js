@@ -314,6 +314,9 @@ async function init() {
     chrome.tabs.create({ url: 'chrome://extensions/shortcuts' })
   );
   $('clearHighlights').addEventListener('click', async () => {
+    // Each highlight's conversation lives under its own chat:<id> key.
+    const chats = Object.keys(await chrome.storage.local.get(null)).filter((key) => key.startsWith('chat:'));
+    await chrome.storage.local.remove(chats);
     await chrome.storage.local.set({ highlights: {} });
     $('dataStatus').className = 'status ok';
     $('dataStatus').textContent = 'Highlights cleared. Reload open tabs to see the change.';

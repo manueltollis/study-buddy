@@ -107,6 +107,7 @@ function renderHighlights(list) {
               all[url] = (all[url] || []).filter((h) => h.id !== item.id);
               if (!all[url].length) delete all[url];
               await chrome.storage.local.set({ highlights: all });
+              await chrome.storage.local.remove('chat:' + item.id);
               load();
             }
           })

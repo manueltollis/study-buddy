@@ -11,6 +11,9 @@
   const HOST_ID = 'claude-study-buddy-root';
   const HL_CLASS = 'claude-study-highlight';
   const PORT_NAME = 'claude-study';
+  /** Storage key prefix for a highlight's conversation: `chat:<highlightId>`. */
+  const CHAT_PREFIX = 'chat:';
+  const MAX_EXCHANGES = 50;
 
   const ACTION_LABELS = {
     explain: 'Explain',
@@ -40,6 +43,7 @@
     pending: null, // { text, range, rect }
     subject: null, // { text, context, highlightId, isPage }
     thread: [], // API-shaped history
+    exchanges: [], // { label, prompt, answer, model, usage, cost } - what gets stored per highlight
     requestId: 0,
     port: null,
     streaming: false,
@@ -280,6 +284,8 @@
     const { all, list } = await storedHighlights();
     all[pageKey()] = list.filter((h) => h.id !== id);
     await chrome.storage.local.set({ highlights: all });
+    await chrome.storage.local.remove(CHAT_PREFIX + id);
+    if (state.subject && state.subject.highlightId === id) state.subject.highlightId = null;
     for (const mark of document.querySelectorAll(`mark.${HL_CLASS}[data-hl-id="${id}"]`)) {
       const parent = mark.parentNode;
       while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
@@ -674,10 +680,19 @@
   function setSubject(subject) {
     mount();
     const previous = state.subject;
-    const changed = !previous || previous.text !== subject.text || previous.isPage !== subject.isPage;
+    const changed =
+      !previous ||
+      previous.text !== subject.text ||
+      previous.isPage !== subject.isPage ||
+      Boolean(previous.highlightId && subject.highlightId && previous.highlightId !== subject.highlightId);
     state.subject = subject;
     if (changed) {
+      // An answer still streaming belongs to the old passage; don't let it land in this one.
+      if (state.streaming) cancel();
+      state.requestId += 1;
+      state.current = null;
       state.thread = [];
+      state.exchanges = [];
       state.ui.thread.replaceChildren();
     }
     state.ui.quoteText.replaceChildren(el('span', {
@@ -742,14 +757,14 @@
     scrollToEnd();
   }
 
-  function startAssistantTurn() {
+  function startAssistantTurn(label) {
     const thinking = el('div', { class: 'thinking' });
     thinking.style.display = 'none';
     const body = el('div', { class: 'body cursor' });
     const meta = el('div', { class: 'meta' });
     const turn = el('div', { class: 'turn' }, [thinking, body, meta]);
     state.ui.thread.appendChild(turn);
-    state.current = { turn, body, meta, thinking, buffer: '', reasoning: '', pending: false };
+    state.current = { turn, body, meta, thinking, label, buffer: '', reasoning: '', pending: false };
     scrollToEnd();
   }
 
@@ -852,7 +867,7 @@
 
     const label = action ? ACTION_LABELS[action] || action : options.question;
     addUserTurn(label);
-    startAssistantTurn();
+    startAssistantTurn(label);
     setBusy(true);
     state.requestId += 1;
 
@@ -932,7 +947,14 @@
     renderCurrent();
     current.body.classList.remove('cursor');
     state.thread.push({ role: 'assistant', content: current.buffer });
+    const noteButton = showAnswerMeta(current, message);
+    if (settings.autoSaveNotes) toggleNote(current, noteButton);
+    rememberExchange(current, message);
+    scrollToEnd();
+  }
 
+  /** The line under an answer: model, tokens and cost, then Copy and Save note. Returns the note button. */
+  function showAnswerMeta(turn, message) {
     const usage = message.usage || {};
     const bits = [message.model];
     if (usage.input_tokens || usage.output_tokens) {
@@ -943,13 +965,14 @@
     }
 
     const saved = el('span', { text: '' });
-    const noteButton = el('button', { text: 'Save note', onclick: () => toggleNote(current, noteButton) });
-    current.meta.replaceChildren(
+    const noteButton = el('button', { onclick: () => toggleNote(turn, noteButton) });
+    labelNoteButton(noteButton, turn);
+    turn.meta.replaceChildren(
       el('span', { text: bits.filter(Boolean).join(' · ') }),
       el('button', {
         text: 'Copy',
         onclick: async () => {
-          await navigator.clipboard.writeText(current.buffer);
+          await navigator.clipboard.writeText(turn.buffer);
           saved.textContent = 'copied';
           setTimeout(() => { saved.textContent = ''; }, 1400);
         }
@@ -957,7 +980,52 @@
       noteButton,
       saved
     );
-    if (settings.autoSaveNotes) toggleNote(current, noteButton);
+    return noteButton;
+  }
+
+  /** Keeps a highlight's conversation, so clicking the highlight later brings it back. */
+  function rememberExchange(turn, message) {
+    const id = state.subject && state.subject.highlightId;
+    const prompt = state.thread[state.thread.length - 2];
+    if (!id || !prompt || prompt.role !== 'user') return;
+    state.exchanges.push({
+      label: turn.label,
+      prompt: prompt.content,
+      answer: turn.buffer,
+      model: message.model,
+      usage: message.usage,
+      cost: message.cost
+    });
+    // The first exchange carries the passage itself, so trim from just after it.
+    if (state.exchanges.length > MAX_EXCHANGES) state.exchanges.splice(1, 1);
+    chrome.storage.local.set({ [CHAT_PREFIX + id]: state.exchanges }).catch(() => {});
+  }
+
+  /** Shows a highlight's earlier conversation and picks the thread up where it left off. */
+  async function restoreConversation(id) {
+    const key = CHAT_PREFIX + id;
+    let store;
+    try {
+      store = await chrome.storage.local.get([key, 'notes']);
+    } catch {
+      return; /* extension reloaded */
+    }
+    const exchanges = store[key];
+    // By the time storage answers the reader may have moved on, or already asked something.
+    if (!exchanges || !exchanges.length) return;
+    if (state.subject?.highlightId !== id || state.thread.length || state.streaming) return;
+    // An answer still in the notes shows as saved, so its button takes it back out.
+    const noteIds = new Map((store.notes || []).map((note) => [note.answer, note.id]));
+    state.ui.thread.replaceChildren();
+    for (const exchange of exchanges) {
+      addUserTurn(exchange.label);
+      const body = el('div', { class: 'body' }, [window.ClaudeMarkdown.render(exchange.answer)]);
+      const meta = el('div', { class: 'meta' });
+      state.ui.thread.appendChild(el('div', { class: 'turn' }, [body, meta]));
+      showAnswerMeta({ meta, buffer: exchange.answer, noteId: noteIds.get(exchange.answer) || null }, exchange);
+      state.thread.push({ role: 'user', content: exchange.prompt }, { role: 'assistant', content: exchange.answer });
+    }
+    state.exchanges = exchanges;
     scrollToEnd();
   }
 
@@ -976,6 +1044,10 @@
       /* extension reloaded - leave the button as it was */
     }
     button.disabled = false;
+    labelNoteButton(button, turn);
+  }
+
+  function labelNoteButton(button, turn) {
     button.textContent = turn.noteId ? 'Saved ✓' : 'Save note';
     button.title = turn.noteId ? 'In your study notes. Click to remove it.' : '';
   }
@@ -1051,6 +1123,7 @@
     range.setEndAfter(marks[marks.length - 1]);
     setSubject({ text, context: contextAround(range, text), highlightId: id });
     openPanel();
+    restoreConversation(id);
   });
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
