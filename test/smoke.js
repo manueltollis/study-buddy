@@ -117,6 +117,8 @@ async function targets() {
 
   const sw = await CDP.connect(swTarget.webSocketDebuggerUrl);
   await sw.send('Runtime.enable');
+  // The worker's target can show up before its extension APIs are bound.
+  for (let i = 0; i < 50 && !(await sw.eval('Boolean(globalThis.chrome?.storage)')); i++) await sleep(100);
   // Keep the worker warm so the fetch stub below survives the whole run.
   const heartbeat = setInterval(() => sw.eval('1').catch(() => {}), 4000);
 
