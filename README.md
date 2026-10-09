@@ -171,9 +171,12 @@ empty page when clicked) is turned back into plain text. Links you wrote yoursel
 
 Setup:
 
-1. In Obsidian, install the community plugin **Local REST API**, and in its settings turn on
-   **Enable Non-encrypted (HTTP) Server**. Its HTTPS port uses a self-signed certificate that Chrome
-   won't trust from an extension.
+1. In Obsidian, install the community plugin **Local REST API with MCP** by **Adam Coddington**
+   ([GitHub](https://github.com/coddingtonbear/obsidian-local-rest-api)). Several plugins have
+   similar names; `obsidian://show-plugin?id=obsidian-local-rest-api` opens the right one in Obsidian
+   directly, and the settings page links to it. In its settings, turn on **Enable Non-encrypted
+   (HTTP) Server**. Its HTTPS port uses a self-signed certificate that Chrome won't trust from an
+   extension.
 2. In Study Buddy's settings, under **Obsidian vault**, paste the plugin's API key and hit **Connect**.
 3. Turn on **File every saved answer in the vault**, or file notes one at a time from the study notes
    page. Each note there shows where it was filed, with **Undo**.

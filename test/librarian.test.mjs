@@ -252,6 +252,15 @@ await test('a bad key stops filing instead of looping', async () => {
   await assert.rejects(vault.ping(), /not accepted/);
 });
 
+await test('connecting to something other than the plugin says so', async () => {
+  for (const body of ['<html>dev server</html>', JSON.stringify({ status: 'OK', service: 'Some Other Plugin', authenticated: true })]) {
+    const vault = createVault({ key: KEY, fetchImpl: async () => new Response(body, { status: 200 }) });
+    await assert.rejects(vault.ping(), /isn't the Local REST API with MCP plugin/);
+  }
+  const real = createVault({ key: KEY, fetchImpl: fakeObsidian(new Map()).fetchImpl });
+  assert.equal((await real.ping()).authenticated, true);
+});
+
 await test('appendUnderHeading', () => {
   assert.equal(appendUnderHeading('# A\n\ntext\n', '', 'more'), '# A\n\ntext\n\nmore\n');
   assert.equal(appendUnderHeading('# A\n\n## B\nb\n\n## C\nc\n', 'B', 'x'), '# A\n\n## B\nb\n\nx\n\n## C\nc\n');

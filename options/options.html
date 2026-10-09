@@ -167,11 +167,18 @@
         A librarian agent files your saved answers into an Obsidian vault: it looks at what's already there, puts each
         answer in the right topic note, and links it to related notes. It uses the provider and key above.
       </p>
-      <p class="hint">
-        Setup: in Obsidian, install the community plugin <b>Local REST API</b>, turn on
-        <b>Enable Non-encrypted (HTTP) Server</b> in its settings, and copy its API key here. Obsidian has to be open
-        for filing to work.
-      </p>
+      <ol class="hint" style="padding-left:18px">
+        <li>
+          In Obsidian, install the community plugin <b>Local REST API with MCP</b> by <b>Adam Coddington</b>. Several
+          plugins have similar names, so use
+          <a href="obsidian://show-plugin?id=obsidian-local-rest-api">this link to open the right one in Obsidian</a>
+          (or see it <a href="https://github.com/coddingtonbear/obsidian-local-rest-api" target="_blank" rel="noreferrer">on GitHub</a>).
+          Install it in the vault you want filed into, and enable it.
+        </li>
+        <li>In the plugin's settings, turn on <b>Enable Non-encrypted (HTTP) Server</b>.</li>
+        <li>Copy the plugin's API key into the field below and hit <b>Connect</b>.</li>
+      </ol>
+      <p class="hint">Obsidian has to be open for filing to work.</p>
       <div class="grid2">
         <div class="field">
           <label class="lab" for="vaultUrl">Plugin address</label>
