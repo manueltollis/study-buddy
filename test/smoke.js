@@ -406,6 +406,15 @@ async function targets() {
     const canvasSize = await pdf.eval(`(() => { const c = document.querySelector('.page canvas'); return c ? c.width + 'x' + c.height : 'none'; })()`);
     check('the page is drawn to canvas', /^[1-9]\d+x[1-9]\d+$/.test(canvasSize), canvasSize);
 
+    const pinned = await pdf.eval(`(async () => {
+      scrollTo(0, document.documentElement.scrollHeight);
+      await new Promise((r) => setTimeout(r, 200));
+      const out = { scrollY: Math.round(scrollY), barTop: Math.round(document.querySelector('.bar').getBoundingClientRect().top) };
+      scrollTo(0, 0);
+      return out;
+    })()`);
+    check('the viewer bar stays pinned while scrolling', pinned.scrollY > 0 && pinned.barTop === 0, JSON.stringify(pinned));
+
     const links = await pdf.eval(`(() => {
       const anchors = [...document.querySelectorAll('.page[data-page="1"] .linkLayer a')];
       const web = anchors.find((a) => a.target === '_blank');
