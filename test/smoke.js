@@ -566,8 +566,135 @@ async function targets() {
   const errText = await page.eval(`(document.getElementById('claude-study-buddy-root').shadowRoot.querySelector('.error') || {}).textContent || ''`);
   check('missing key surfaces a fixable error', errText.includes('No API key') && errText.includes('Open settings'), JSON.stringify(errText));
 
-  // --- extension pages
+  // --- Obsidian librarian: a fake Local REST API plugin on a real port, no CORS headers
   const extId = loaded.id;
+  const vaultFiles = new Map([['Biology/Photosynthesis.md', '# Photosynthesis\n']]);
+  const vaultCalls = [];
+  const vaultServer = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      const url = new URL(req.url, 'http://127.0.0.1');
+      const path = decodeURIComponent(url.pathname.replace(/^\/vault\/?/, ''));
+      vaultCalls.push(`${req.method} ${decodeURIComponent(url.pathname)}`);
+      const send = (status, data) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(data)); };
+      if (url.pathname === '/') return send(200, { status: 'OK', authenticated: req.headers.authorization === 'Bearer obs-key', versions: { obsidian: '1.9.0' } });
+      if (req.headers.authorization !== 'Bearer obs-key') return send(401, { message: 'Unauthorized' });
+      if (url.pathname.endsWith('/')) {
+        const entries = new Set([...vaultFiles.keys()].filter((f) => f.startsWith(path)).map((f) => f.slice(path.length).split('/')[0] + (f.slice(path.length).includes('/') ? '/' : '')));
+        return entries.size || !path ? send(200, { files: [...entries] }) : send(404, { message: 'Not found' });
+      }
+      if (req.method === 'GET') {
+        if (!vaultFiles.has(path)) return send(404, { message: 'Not found' });
+        res.writeHead(200, { 'content-type': 'text/markdown' });
+        return res.end(vaultFiles.get(path));
+      }
+      if (req.method === 'PUT') vaultFiles.set(path, body);
+      if (req.method === 'DELETE') vaultFiles.delete(path);
+      res.writeHead(204);
+      res.end();
+    });
+  }).listen(27199);
+
+  await sw.eval(`
+    globalThis.__libSeen = [];
+    globalThis.__preLibrarian = globalThis.fetch;
+    globalThis.fetch = async (url, opts) => {
+      const body = globalThis.__isApiCall(url) ? JSON.parse(opts.body) : null;
+      if (!body || !body.tools) return globalThis.__preLibrarian(url, opts);
+      globalThis.__libSeen.push(body);
+      const script = [
+        [['list_folder', { path: 'Study Buddy' }]],
+        [['create_note', { path: 'Study Buddy/Biology/Light reactions.md', content: '# Light reactions\\n\\nMake ATP. See [[Photosynthesis]].\\n' }],
+         ['append_to_note', { path: 'Biology/Photosynthesis.md', content: 'pwned' }]],
+        [['suggest_next', { topics: [{ name: 'Calvin cycle', why: 'where the ATP goes' }] }]]
+      ];
+      const calls = script[(body.messages.length - 1) / 2] || [];
+      const content = calls.length
+        ? calls.map((c, i) => ({ type: 'tool_use', id: 'tu_' + body.messages.length + '_' + i, name: c[0], input: c[1] }))
+        : [{ type: 'text', text: 'Filed under Study Buddy/Biology/Light reactions.md.' }];
+      // Streamed like the real API, with tool arguments split across deltas.
+      const events = [{ type: 'message_start', message: { model: body.model, usage: { input_tokens: 300, output_tokens: 0 } } }];
+      content.forEach((block, index) => {
+        if (block.type === 'text') {
+          events.push({ type: 'content_block_start', index, content_block: { type: 'text', text: '' } }, { type: 'content_block_delta', index, delta: { type: 'text_delta', text: block.text } });
+        } else {
+          const json = JSON.stringify(block.input);
+          events.push(
+            { type: 'content_block_start', index, content_block: { type: 'tool_use', id: block.id, name: block.name, input: {} } },
+            { type: 'content_block_delta', index, delta: { type: 'input_json_delta', partial_json: json.slice(0, 10) } },
+            { type: 'content_block_delta', index, delta: { type: 'input_json_delta', partial_json: json.slice(10) } }
+          );
+        }
+        events.push({ type: 'content_block_stop', index });
+      });
+      events.push({ type: 'message_delta', delta: { stop_reason: calls.length ? 'tool_use' : 'end_turn' }, usage: { output_tokens: 40 } });
+      const enc = new TextEncoder();
+      const gap = String.fromCharCode(10, 10);
+      const stream = new ReadableStream({ start(c) { for (const e of events) c.enqueue(enc.encode('data: ' + JSON.stringify(e) + gap)); c.close(); } });
+      return new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+    };
+    chrome.storage.local.set({ settings: { provider: 'anthropic', keys: { anthropic: 'sk-ant-fake-for-test' }, models: { anthropic: 'claude-opus-5' }, effort: 'medium', bubbleEnabled: true, autoHighlight: false, vaultUrl: 'http://127.0.0.1:27199', vaultKey: 'obs-key', vaultAutoFile: true, vaultModel: 'claude-sonnet-5' } })
+      .then(() => chrome.storage.local.set({ notes: [{ id: 'lib1', url: 'http://localhost:8765/', title: 'Photosynthesis', selection: 'light-dependent reactions', question: 'Explain', answer: '**Light** reactions make ATP.', createdAt: Date.now() }] }))
+      .then(() => 'filing');
+  `);
+  let filing = {};
+  for (let i = 0; i < 50 && !['filed', 'failed'].includes(filing.status); i++) {
+    await sleep(200);
+    filing = JSON.parse(await sw.eval(`chrome.storage.local.get('vault').then((s) => JSON.stringify((s.vault || {}).lib1 || {}))`));
+  }
+  const libReq = JSON.parse(await sw.eval(`JSON.stringify(globalThis.__libSeen.map((b) => ({ model: b.model, effort: b.output_config && b.output_config.effort, thinking: b.thinking || null, stream: Boolean(b.stream), tools: b.tools.length })))`));
+  check('a saved answer is filed into the vault', filing.status === 'filed' && vaultFiles.has('Study Buddy/Biology/Light reactions.md'),
+    JSON.stringify({ status: filing.status, error: filing.error, files: [...vaultFiles.keys()] }));
+  check('the librarian cannot touch notes outside its folder', vaultFiles.get('Biology/Photosynthesis.md') === '# Photosynthesis\n', vaultCalls.filter((c) => !c.startsWith('GET')).join(', '));
+  check('the librarian uses its own model, quietly', libReq.length === 4 && libReq.every((r) => r.model === 'claude-sonnet-5' && r.effort === 'low' && !r.thinking && r.stream && r.tools === 7), JSON.stringify(libReq[0]));
+
+  {
+    const target = await fetch(`http://127.0.0.1:${PORT}/json/new?chrome-extension://${extId}/notes/notes.html`, { method: 'PUT' }).then((r) => r.json());
+    const client = await CDP.connect(target.webSocketDebuggerUrl);
+    await client.send('Runtime.enable');
+    await sleep(900);
+    const shown = await client.eval(`document.querySelector('.vault') ? document.querySelector('.vault').textContent : ''`);
+    check('the notes page shows where a note was filed', shown === 'In vault: Study Buddy/Biology/Light reactions.md', JSON.stringify(shown));
+    const next = await client.eval(`[...document.querySelectorAll('.next li')].map((li) => li.textContent).join(' | ')`);
+    check('the notes page shows what to study next', next === 'Calvin cycle — where the ATP goes', JSON.stringify(next));
+    await client.eval(`[...document.querySelectorAll('.card__foot button')].find((b) => b.textContent === 'Undo').click(); 'clicked'`);
+    await sleep(900);
+    const after = await client.eval(`document.querySelector('.vault') ? document.querySelector('.vault').textContent : ''`);
+    const errs = client.consoleErrors();
+    check('undo takes the filing back out of the vault', !vaultFiles.has('Study Buddy/Biology/Light reactions.md') && after === 'Taken back out of the vault' && !errs.length,
+      JSON.stringify({ after, files: [...vaultFiles.keys()], errs }));
+    await fetch(`http://127.0.0.1:${PORT}/json/close/${target.id}`);
+  }
+  // End to end from a real question: the panel shows the filing under the answer.
+  await page.eval(`(() => {
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById('p1'));
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    return 'selected';
+  })()`);
+  await sleep(400);
+  await page.eval(`document.getElementById('claude-study-buddy-root').shadowRoot.querySelector('.bubble .primary').click(); 'clicked'`);
+  const lastLine = `(() => { const lines = document.getElementById('claude-study-buddy-root').shadowRoot.querySelectorAll('.vault'); return lines.length ? lines[lines.length - 1].textContent : ''; })()`;
+  let panelLine = '';
+  for (let i = 0; i < 50 && !panelLine.startsWith('Obsidian · filed'); i++) {
+    await sleep(200);
+    panelLine = await page.eval(lastLine);
+  }
+  check('the panel shows the librarian filing an answer',
+    panelLine.startsWith('Obsidian · filed in Light reactions') && panelLine.includes('Undo') && panelLine.includes('study next: Calvin cycle'), JSON.stringify(panelLine));
+  await page.eval(`[...document.getElementById('claude-study-buddy-root').shadowRoot.querySelectorAll('.vault button')].pop().click(); 'undo'`);
+  for (let i = 0; i < 25 && !panelLine.startsWith('Obsidian · taken back out'); i++) {
+    await sleep(200);
+    panelLine = await page.eval(lastLine);
+  }
+  check('undo from the panel works', panelLine.startsWith('Obsidian · taken back out') && !vaultFiles.has('Study Buddy/Biology/Light reactions.md'), JSON.stringify(panelLine));
+
+  await sw.eval(`globalThis.fetch = globalThis.__preLibrarian; chrome.storage.local.set({ settings: { provider: 'anthropic', keys: { anthropic: '' }, models: { anthropic: 'claude-opus-5' }, effort: 'medium', bubbleEnabled: true, autoHighlight: false } }).then(() => 'reset')`);
+  vaultServer.close();
+
+  // --- extension pages
   for (const [name, path, probe, expect] of [
     ['options page', 'options/options.html', `document.getElementById('provider').options.length + ':' + document.getElementById('model').options.length + ':' + document.getElementById('effort').options.length + ':' + /questions per \\$1/.test(document.getElementById('priceHint').textContent)`, '4:3:5:true'],
     ['notes page', 'notes/notes.html', `document.querySelectorAll('.card').length + ':' + (document.querySelector('.answer strong') ? 'md' : 'nomd')`, '1:md'],

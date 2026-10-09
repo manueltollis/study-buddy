@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const state = { tab: 'notes', query: '', notes: [], highlights: {}, autoSave: true };
+const state = { tab: 'notes', query: '', notes: [], highlights: {}, autoSave: true, vault: {}, vaultConnected: false };
 
 const fmtDate = (ts) =>
   new Date(ts).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -20,10 +20,12 @@ function el(tag, props, children) {
 }
 
 async function load() {
-  const store = await chrome.storage.local.get(['notes', 'highlights', 'settings']);
+  const store = await chrome.storage.local.get(['notes', 'highlights', 'settings', 'vault']);
   state.notes = (store.notes || []).slice().reverse();
   state.highlights = store.highlights || {};
   state.autoSave = store.settings?.autoSaveNotes !== false;
+  state.vault = store.vault || {};
+  state.vaultConnected = Boolean(store.settings?.vaultKey);
   render();
 }
 
@@ -63,6 +65,7 @@ function renderNotes(list) {
             text: 'Copy',
             onclick: () => navigator.clipboard.writeText(note.answer)
           }),
+          ...vaultControls(note),
           el('button', {
             class: 'ghost danger',
             text: 'Delete',
@@ -74,9 +77,65 @@ function renderNotes(list) {
               load();
             }
           })
-        ])
+        ]),
+        studyNext(note)
       ])
     );
+  }
+}
+
+/** What the librarian thinks is worth looking into after this note. */
+function studyNext(note) {
+  const entry = state.vault[note.id];
+  if (entry?.status !== 'filed' || !entry.suggestions?.length) return null;
+  return el('div', { class: 'next' }, [
+    el('div', { class: 'ask', text: 'Study next' }),
+    el(
+      'ul',
+      {},
+      entry.suggestions.map((topic) =>
+        el('li', {}, [el('b', { text: topic.name }), topic.why ? el('span', { text: ` — ${topic.why}` }) : null])
+      )
+    )
+  ]);
+}
+
+/** Where the librarian has got to with a note, and what can be done about it. */
+function vaultControls(note) {
+  const entry = state.vault[note.id];
+  if (!state.vaultConnected && !entry) return [];
+  const file = (label) =>
+    el('button', {
+      class: 'ghost',
+      text: label,
+      onclick: () => chrome.runtime.sendMessage({ type: 'vault-file', noteId: note.id })
+    });
+  const undo = () =>
+    el('button', {
+      class: 'ghost',
+      text: 'Undo',
+      title: 'Reverse the librarian’s changes for this note',
+      onclick: async (event) => {
+        event.target.disabled = true;
+        const result = await chrome.runtime.sendMessage({ type: 'vault-undo', noteId: note.id });
+        if (!result?.ok) alert(result?.message || 'Undo failed.');
+      }
+    });
+  const status = (text, kind, title) => el('span', { class: `vault vault--${kind}`, text, title });
+  const paths = [...new Set((entry?.ops || []).map((op) => op.path))];
+
+  if (!entry) return [file('File in vault')];
+  switch (entry.status) {
+    case 'queued':
+      return [status('Waiting to file…', 'busy')];
+    case 'working':
+      return [status(`Filing — ${entry.step || 'working'}…`, 'busy')];
+    case 'filed':
+      return [status(`In vault: ${paths.join(', ') || 'no changes'}`, 'ok', entry.summary), paths.length ? undo() : null];
+    case 'undone':
+      return [status('Taken back out of the vault', 'muted'), file('File again')];
+    default:
+      return [status(`Filing failed: ${entry.error || 'unknown error'}`, 'err'), paths.length ? undo() : null, file('Retry')];
   }
 }
 

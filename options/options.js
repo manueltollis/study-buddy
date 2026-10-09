@@ -11,7 +11,11 @@ import {
 const $ = (id) => document.getElementById(id);
 const NUMBER_FIELDS = ['maxTokens', 'contextChars'];
 const SIMPLE_FIELDS = ['effort', 'level', 'customWire', 'theme'];
-const CHECK_FIELDS = ['showReasoning', 'useFallbacks', 'bubbleEnabled', 'autoHighlight', 'autoSaveNotes', 'pdfViewer'];
+const TEXT_FIELDS = ['vaultUrl', 'vaultKey', 'vaultFolder', 'vaultModel'];
+const CHECK_FIELDS = [
+  'showReasoning', 'useFallbacks', 'bubbleEnabled', 'autoHighlight', 'autoSaveNotes', 'pdfViewer',
+  'vaultAutoFile', 'vaultAppendOutside'
+];
 
 /** A representative question, used to translate token prices into something legible. */
 const TYPICAL = { input: 500, output: 200 };
@@ -224,6 +228,7 @@ function queueSave() {
       workspaceId
     };
     for (const id of SIMPLE_FIELDS) patch[id] = $(id).value;
+    for (const id of TEXT_FIELDS) patch[id] = $(id).value.trim() || (id === 'vaultKey' || id === 'vaultModel' ? '' : DEFAULT_SETTINGS[id]);
     for (const id of CHECK_FIELDS) patch[id] = $(id).checked;
     for (const id of NUMBER_FIELDS) {
       const value = Number($(id).value);
@@ -248,6 +253,7 @@ async function init() {
   $('customWire').value = settings.customWire || 'anthropic';
   $('workspaceId').value = settings.workspaceId || '';
   for (const id of SIMPLE_FIELDS) $(id).value = settings[id];
+  for (const id of TEXT_FIELDS) $(id).value = settings[id] || '';
   for (const id of NUMBER_FIELDS) $(id).value = settings[id];
   for (const id of CHECK_FIELDS) $(id).checked = Boolean(settings[id]);
   applyProviderUI();
@@ -261,7 +267,7 @@ async function init() {
   $('refreshModels').addEventListener('click', () => loadCatalog(settings.provider, true));
   $('customBaseUrl').addEventListener('input', () => { queueSave(); checkPermission(); });
 
-  for (const id of ['apiKey', 'workspaceId', ...SIMPLE_FIELDS, ...NUMBER_FIELDS, ...CHECK_FIELDS]) {
+  for (const id of ['apiKey', 'workspaceId', ...SIMPLE_FIELDS, ...TEXT_FIELDS, ...NUMBER_FIELDS, ...CHECK_FIELDS]) {
     $(id).addEventListener('change', queueSave);
     $(id).addEventListener('input', queueSave);
   }
@@ -307,6 +313,17 @@ async function init() {
     }
   });
 
+  $('vaultTest').addEventListener('click', async () => {
+    const status = $('vaultStatus');
+    status.className = 'status';
+    status.textContent = 'Connecting…';
+    const overrides = {};
+    for (const id of TEXT_FIELDS) overrides[id] = $(id).value.trim() || (id === 'vaultKey' ? '' : DEFAULT_SETTINGS[id]);
+    const result = await chrome.runtime.sendMessage({ type: 'vault-test', overrides });
+    status.className = 'status ' + (result?.ok ? 'ok' : 'err');
+    status.textContent = result?.message || 'No response from the extension worker.';
+  });
+
   $('openNotes').addEventListener('click', () =>
     chrome.tabs.create({ url: chrome.runtime.getURL('notes/notes.html') })
   );
@@ -323,6 +340,8 @@ async function init() {
   });
   $('clearNotes').addEventListener('click', async () => {
     await chrome.storage.local.set({ notes: [] });
+    // Filing records belong to notes; the notes already filed stay in the vault.
+    await chrome.storage.local.remove('vault');
     $('dataStatus').className = 'status ok';
     $('dataStatus').textContent = 'Notes deleted.';
   });

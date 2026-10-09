@@ -19,6 +19,8 @@ import {
   systemPrompt,
   wireOf
 } from '../lib/config.js';
+import { fileNote, streamCollector, undoOps } from '../lib/librarian.js';
+import { createVault } from '../lib/vault.js';
 
 const API_VERSION = '2023-06-01';
 const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
@@ -32,12 +34,13 @@ const endpointFor = (settings) =>
     : `${activeBaseUrl(settings)}/v1/messages`;
 
 /** OpenAI Chat Completions shape, for gateways that speak it (OpenRouter, local servers). */
-function buildOpenAiBody(settings, { system, messages, maxTokens, stream }) {
+function buildOpenAiBody(settings, { system, messages, maxTokens, stream, tools }) {
   const body = {
     model: activeModel(settings),
     max_tokens: maxTokens || settings.maxTokens,
     messages: [{ role: 'system', content: system }, ...messages]
   };
+  if (tools) body.tools = tools;
   if (stream) {
     body.stream = true;
     body.stream_options = { include_usage: true };
@@ -45,9 +48,9 @@ function buildOpenAiBody(settings, { system, messages, maxTokens, stream }) {
   return body;
 }
 
-function buildBody(settings, { system, messages, maxTokens, stream, withFallbacks }) {
+function buildBody(settings, { system, messages, maxTokens, stream, tools, withFallbacks }) {
   if (wireOf(settings) === 'openai') {
-    return buildOpenAiBody(settings, { system, messages, maxTokens, stream });
+    return buildOpenAiBody(settings, { system, messages, maxTokens, stream, tools });
   }
   const body = {
     model: activeModel(settings),
@@ -55,6 +58,7 @@ function buildBody(settings, { system, messages, maxTokens, stream, withFallback
     system: [{ type: 'text', text: system }],
     messages
   };
+  if (tools) body.tools = tools;
   if (stream) body.stream = true;
   if (supportsEffort(settings)) {
     body.output_config = { effort: settings.effort };
@@ -154,11 +158,36 @@ async function sendRequest(settings, options, signal) {
   return { response, preReadText: null };
 }
 
-/** Parses the SSE stream and pushes semantic events to `emit`. */
-async function readStream(response, emit, wire) {
+/** Yields each parsed `data:` frame of a server-sent event stream. */
+async function* sseEvents(response) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split('\n\n');
+    buffer = chunks.pop() ?? '';
+    for (const chunk of chunks) {
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (!data || data === '[DONE]') continue;
+        let event;
+        try {
+          event = JSON.parse(data);
+        } catch {
+          continue; /* partial or unknown frame - ignore */
+        }
+        yield event;
+      }
+    }
+  }
+}
+
+/** Parses the SSE stream and pushes semantic events to `emit`. */
+async function readStream(response, emit, wire) {
   let text = '';
   const usage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0 };
   let stopReason = null;
@@ -218,26 +247,7 @@ async function readStream(response, emit, wire) {
   };
 
   const handle = wire === 'openai' ? handleOpenAi : handleAnthropic;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const chunks = buffer.split('\n\n');
-    buffer = chunks.pop() ?? '';
-    for (const chunk of chunks) {
-      for (const line of chunk.split('\n')) {
-        if (!line.startsWith('data:')) continue;
-        const data = line.slice(5).trim();
-        if (!data || data === '[DONE]') continue;
-        try {
-          handle(JSON.parse(data));
-        } catch {
-          /* partial or unknown frame - ignore */
-        }
-      }
-    }
-  }
+  for await (const event of sseEvents(response)) handle(event);
 
   return { text, usage, stopReason, servedBy };
 }
@@ -379,6 +389,171 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 });
 
+/* --------------------------------------------------- Obsidian librarian */
+
+/** Per-note filing state, keyed by note id: status, progress, summary, and the undo journal. */
+const VAULT_KEY = 'vault';
+const vaultQueue = [];
+let vaultRunning = false;
+/** Serializes read-modify-writes of the journal. */
+let journalWrite = Promise.resolve();
+
+function updateFiling(noteId, patch) {
+  journalWrite = journalWrite.catch(() => {}).then(async () => {
+    const store = await chrome.storage.local.get(VAULT_KEY);
+    const all = store[VAULT_KEY] || {};
+    all[noteId] = { ...(all[noteId] || {}), ...patch, at: Date.now() };
+    await chrome.storage.local.set({ [VAULT_KEY]: all });
+  });
+  return journalWrite;
+}
+
+const vaultReady = (settings) => Boolean(settings.vaultKey);
+const vaultFor = (settings) => createVault({ url: settings.vaultUrl, key: settings.vaultKey });
+
+/** The answering settings, tuned for filing: its own model if set, no visible reasoning, quick effort. */
+function librarianSettings(settings) {
+  const model = (settings.vaultModel || '').trim();
+  return {
+    ...settings,
+    models: model ? { ...settings.models, [settings.provider]: model } : settings.models,
+    effort: 'low',
+    showReasoning: false,
+    useFallbacks: false,
+    // Room to write a whole note in one tool call.
+    maxTokens: Math.max(settings.maxTokens, 8000)
+  };
+}
+
+/**
+ * One request, resolving with the body a non-streaming call would return.
+ * It streams anyway: Chrome stops the worker if a response takes more than
+ * 30 seconds to start arriving, and writing out a long note takes longer.
+ */
+async function complete(settings, options) {
+  const { response, preReadText } = await sendRequest(settings, { ...options, stream: true }, undefined);
+  if (!response.ok) {
+    const raw = preReadText ?? (await response.text());
+    let payload = null;
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(describeError(response.status, payload, raw));
+  }
+  const collector = streamCollector(wireOf(settings));
+  for await (const event of sseEvents(response)) collector.push(event);
+  return collector.result();
+}
+
+function queueFiling(noteId) {
+  if (vaultQueue.includes(noteId)) return;
+  vaultQueue.push(noteId);
+  updateFiling(noteId, { status: 'queued', step: '', error: '' });
+  drainVaultQueue();
+}
+
+async function drainVaultQueue() {
+  if (vaultRunning) return;
+  vaultRunning = true;
+  try {
+    while (vaultQueue.length) await fileOne(vaultQueue[0]).finally(() => vaultQueue.shift());
+  } finally {
+    vaultRunning = false;
+  }
+}
+
+async function fileOne(noteId) {
+  const store = await chrome.storage.local.get('notes');
+  const note = (store.notes || []).find((n) => n.id === noteId);
+  // Taken back out of the notes before its turn came.
+  if (!note) return updateFiling(noteId, { status: 'failed', error: 'The note was deleted before it could be filed.' });
+
+  const settings = librarianSettings(await getSettings());
+  if (!vaultReady(settings)) return updateFiling(noteId, { status: 'failed', error: 'No vault connected. Set one up in settings.' });
+  if (!activeKey(settings) || !activeBaseUrl(settings)) {
+    return updateFiling(noteId, { status: 'failed', error: 'No API key set for the current provider.' });
+  }
+
+  // A retry after a failure keeps the earlier attempt's writes, so Undo still reaches them.
+  const previous = ((await chrome.storage.local.get(VAULT_KEY))[VAULT_KEY] || {})[noteId];
+  const prior = previous?.status === 'failed' ? previous.ops || [] : [];
+  await updateFiling(noteId, { status: 'working', step: 'Looking at the vault', ops: prior, summary: '', error: '' });
+  // Chrome also stops a worker after 30 seconds without extension activity, and
+  // a streamed reply alone doesn't count. Any API call resets that clock.
+  const keepAlive = setInterval(() => chrome.runtime.getPlatformInfo().catch(() => {}), 20000);
+  try {
+    const result = await fileNote({
+      note,
+      vault: vaultFor(settings),
+      wire: wireOf(settings),
+      folder: settings.vaultFolder,
+      appendOutside: settings.vaultAppendOutside,
+      complete: (options) => complete(settings, options),
+      // Each step is a storage write, which also keeps the worker alive through a long filing.
+      onStep: (step) => updateFiling(noteId, { step })
+    });
+    const model = result.model || activeModel(settings);
+    await updateFiling(noteId, {
+      status: 'filed',
+      step: '',
+      summary: result.summary,
+      ops: [...prior, ...result.ops],
+      suggestions: result.suggestions,
+      unlinked: result.unlinked,
+      model,
+      cost: estimateCost(model, result.usage, settings)
+    });
+  } catch (error) {
+    await updateFiling(noteId, {
+      status: 'failed',
+      step: '',
+      error: String(error?.message || error),
+      ops: [...prior, ...(error.ops || [])]
+    });
+  } finally {
+    clearInterval(keepAlive);
+  }
+}
+
+async function undoFiling(noteId) {
+  const store = await chrome.storage.local.get(VAULT_KEY);
+  const entry = (store[VAULT_KEY] || {})[noteId];
+  if (!entry?.ops?.length) return { ok: false, message: 'Nothing to undo.' };
+  const settings = await getSettings();
+  try {
+    const { undone, skipped } = await undoOps(vaultFor(settings), entry.ops);
+    await updateFiling(noteId, { status: skipped.length ? 'filed' : 'undone', ops: skipped.length ? entry.ops : [] });
+    return skipped.length
+      ? { ok: false, message: `Undid ${undone} change${undone === 1 ? '' : 's'}; left ${skipped.join(', ')} alone because it was edited since.` }
+      : { ok: true, message: `Undid ${undone} change${undone === 1 ? '' : 's'}.` };
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+}
+
+// Answers saved while auto-filing is on go to the librarian as they land.
+chrome.storage.onChanged.addListener(async (changes, area) => {
+  if (area !== 'local' || !changes.notes) return;
+  const before = new Set((changes.notes.oldValue || []).map((note) => note.id));
+  const added = (changes.notes.newValue || []).filter((note) => !before.has(note.id));
+  if (!added.length) return;
+  const settings = await getSettings();
+  if (!settings.vaultAutoFile || !vaultReady(settings)) return;
+  for (const note of added) queueFiling(note.id);
+});
+
+// A fresh worker has an empty queue, so anything still marked in progress was cut off.
+(async () => {
+  const store = await chrome.storage.local.get(VAULT_KEY);
+  const stale = Object.entries(store[VAULT_KEY] || {}).filter(([, e]) => e.status === 'queued' || e.status === 'working');
+  for (const [noteId, entry] of stale) {
+    if (vaultQueue.includes(noteId)) continue;
+    updateFiling(noteId, { status: 'failed', step: '', error: 'Interrupted. Try again.', ops: entry.ops || [] });
+  }
+})();
+
 /* ------------------------------------------------- one-off page requests */
 
 const PAGES = {
@@ -478,6 +653,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       );
     })();
     return false;
+  }
+  if (message?.type === 'vault-test') {
+    (async () => {
+      const settings = { ...(await getSettings()), ...(message.overrides || {}) };
+      if (!settings.vaultKey) {
+        sendResponse({ ok: false, message: 'Paste the API key from the Local REST API plugin first.' });
+        return;
+      }
+      try {
+        const vault = vaultFor(settings);
+        const info = await vault.ping();
+        const root = await vault.list('');
+        sendResponse({
+          ok: true,
+          message: `Connected to Obsidian ${info.versions?.obsidian || ''} — ${root.length} item${root.length === 1 ? '' : 's'} at the vault root.`
+        });
+      } catch (error) {
+        sendResponse({ ok: false, message: error.message });
+      }
+    })();
+    return true;
+  }
+  if (message?.type === 'vault-file') {
+    queueFiling(message.noteId);
+    sendResponse({ ok: true });
+    return false;
+  }
+  if (message?.type === 'vault-undo') {
+    undoFiling(message.noteId).then(sendResponse);
+    return true;
   }
   if (message?.type === 'test-key') {
     (async () => {
