@@ -11,7 +11,7 @@ import {
 const $ = (id) => document.getElementById(id);
 const NUMBER_FIELDS = ['maxTokens', 'contextChars'];
 const SIMPLE_FIELDS = ['effort', 'level', 'customWire', 'theme'];
-const CHECK_FIELDS = ['showReasoning', 'useFallbacks', 'bubbleEnabled', 'autoHighlight', 'pdfViewer'];
+const CHECK_FIELDS = ['showReasoning', 'useFallbacks', 'bubbleEnabled', 'autoHighlight', 'autoSaveNotes', 'pdfViewer'];
 
 /** A representative question, used to translate token prices into something legible. */
 const TYPICAL = { input: 500, output: 200 };

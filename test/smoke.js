@@ -195,6 +195,19 @@ async function targets() {
   await shot(page, 'panel');
   check('usage + cost shown', /412 in \/ 64 out/.test(meta) && /\$0\./.test(meta), JSON.stringify(meta));
 
+  // Answers file themselves in the study notes; the button under one takes it back out.
+  const noteButton = `[...document.getElementById('claude-study-buddy-root').shadowRoot.querySelectorAll('.thread .meta button')].pop()`;
+  const savedNotes = async () => JSON.parse(await sw.eval(`chrome.storage.local.get('notes').then((s) => JSON.stringify((s.notes || []).map((n) => n.answer.slice(0, 18))))`));
+  let autoSaved = [];
+  for (let i = 0; i < 20 && !autoSaved.length; i++) { await sleep(100); autoSaved = await savedNotes(); }
+  const autoLabel = await page.eval(`${noteButton}.textContent`);
+  check('answers are saved to notes automatically', autoSaved.length === 1 && autoSaved[0] === '**Photosynthesis**' && autoLabel === 'Saved ✓', JSON.stringify({ autoSaved, autoLabel }));
+  await page.eval(`${noteButton}.click(); 'unsave'`);
+  await sleep(300);
+  const unsaved = await savedNotes();
+  const unsavedLabel = await page.eval(`${noteButton}.textContent`);
+  check('"Saved ✓" takes the answer back out of the notes', unsaved.length === 0 && unsavedLabel === 'Save note', JSON.stringify({ unsaved, unsavedLabel }));
+
   // Theme setting overrides the system scheme in both directions, live.
   const setTheme = (theme) => sw.eval(`chrome.storage.local.get('settings').then(({ settings }) => chrome.storage.local.set({ settings: { ...settings, theme: '${theme}' } }))`);
   const hostTheme = () => page.eval(`document.getElementById('claude-study-buddy-root').dataset.theme`);
@@ -259,8 +272,9 @@ async function targets() {
   await sw.eval(`globalThis.fetch = globalThis.__realStub; 'restored'`);
 
   // switching provider retargets the endpoint and drops Anthropic-only fields
-  await sw.eval(`chrome.storage.local.set({ settings: { provider: 'zai', keys: { zai: 'zai-test-key' }, models: { zai: 'glm-5.3-flash' }, effort: 'medium', maxTokens: 1200, level: 'student', contextChars: 800, autoHighlight: false, bubbleEnabled: true, useFallbacks: true, workspaceId: 'wrkspc_01TEST' } })`);
+  await sw.eval(`chrome.storage.local.set({ settings: { provider: 'zai', keys: { zai: 'zai-test-key' }, models: { zai: 'glm-5.3-flash' }, effort: 'medium', maxTokens: 1200, level: 'student', contextChars: 800, autoHighlight: false, autoSaveNotes: false, bubbleEnabled: true, useFallbacks: true, workspaceId: 'wrkspc_01TEST' } })`);
   await sleep(300);
+  const notesBeforeGlm = (await savedNotes()).length;
   await page.eval(`document.getElementById('claude-study-buddy-root').shadowRoot.querySelectorAll('.chip')[3].click(); 'example'`);
   await sleep(1200);
   const glm = JSON.parse(await sw.eval(`JSON.stringify({
@@ -283,6 +297,9 @@ async function targets() {
     JSON.stringify({ effort: glm.effort, fallbacks: glm.fallbacks, beta: glm.beta, workspace: glm.workspace }));
   const glmMeta = await page.eval(`[...document.getElementById('claude-study-buddy-root').shadowRoot.querySelectorAll('.thread .meta')].pop().textContent`);
   check('GLM cost readout uses GLM prices', /glm-5\.3-flash/.test(glmMeta) && /\$0\.00004/.test(glmMeta), JSON.stringify(glmMeta.slice(0, 60)));
+  const notesAfterGlm = (await savedNotes()).length;
+  const manualLabel = await page.eval(`${noteButton}.textContent`);
+  check('turning auto-save off leaves notes to "Save note"', notesAfterGlm === notesBeforeGlm && manualLabel === 'Save note', JSON.stringify({ notesBeforeGlm, notesAfterGlm, manualLabel }));
 
   // OpenRouter: the OpenAI Chat Completions wire
   await sw.eval(`chrome.storage.local.set({ settings: { provider: 'openrouter', keys: { openrouter: 'sk-or-test' }, models: { openrouter: 'z-ai/glm-5.3-flash' }, prices: { 'z-ai/glm-5.3-flash': [0.075, 0.25] }, maxTokens: 1200, level: 'student', contextChars: 800, autoHighlight: false, bubbleEnabled: true, effort: 'medium', useFallbacks: true, workspaceId: 'wrkspc_01TEST' } })`);

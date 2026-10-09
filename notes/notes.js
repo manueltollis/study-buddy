@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const state = { tab: 'notes', query: '', notes: [], highlights: {} };
+const state = { tab: 'notes', query: '', notes: [], highlights: {}, autoSave: true };
 
 const fmtDate = (ts) =>
   new Date(ts).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -20,9 +20,10 @@ function el(tag, props, children) {
 }
 
 async function load() {
-  const store = await chrome.storage.local.get(['notes', 'highlights']);
+  const store = await chrome.storage.local.get(['notes', 'highlights', 'settings']);
   state.notes = (store.notes || []).slice().reverse();
   state.highlights = store.highlights || {};
+  state.autoSave = store.settings?.autoSaveNotes !== false;
   render();
 }
 
@@ -38,7 +39,9 @@ function renderNotes(list) {
     $('empty').hidden = false;
     $('empty').textContent = state.query
       ? 'No notes match that search.'
-      : 'No saved notes yet. Hit “Save note” under any answer.';
+      : state.autoSave
+        ? 'No saved notes yet. Every answer you get in the panel lands here.'
+        : 'No saved notes yet. Hit “Save note” under any answer.';
     return;
   }
   for (const note of notes) {
