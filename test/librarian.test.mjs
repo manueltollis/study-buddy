@@ -5,7 +5,7 @@
  *   node test/librarian.test.mjs
  */
 import assert from 'node:assert/strict';
-import { appendUnderHeading, fileNote, undoOps } from '../lib/librarian.js';
+import { appendUnderHeading, fileNote, streamCollector, undoOps } from '../lib/librarian.js';
 import { createVault } from '../lib/vault.js';
 
 const KEY = 'test-key';
@@ -192,7 +192,7 @@ await test('appending outside the folder works when allowed, and undo skips edit
     { text: 'Linked.' }
   ]);
   const result = await fileNote({ note: NOTE, vault, complete: model.complete, wire: 'anthropic', folder: 'Study Buddy', appendOutside: true });
-  assert.equal(files.get('Biology/Mitochondria.md'), '# Mitochondria\n\nThe powerhouse.\n\n## Links\n- [[Cell]]\n\n- [[ATP synthase]]\n\n## Notes\nOld.\n');
+  assert.equal(files.get('Biology/Mitochondria.md'), '# Mitochondria\n\nThe powerhouse.\n\n## Links\n- [[Cell]]\n- [[ATP synthase]]\n\n## Notes\nOld.\n');
 
   files.set('Biology/Mitochondria.md', files.get('Biology/Mitochondria.md') + 'My own edit.\n');
   const undone = await undoOps(vault, result.ops);
@@ -262,9 +262,73 @@ await test('connecting to something other than the plugin says so', async () => 
 });
 
 await test('appendUnderHeading', () => {
-  assert.equal(appendUnderHeading('# A\n\ntext\n', '', 'more'), '# A\n\ntext\n\nmore\n');
-  assert.equal(appendUnderHeading('# A\n\n## B\nb\n\n## C\nc\n', 'B', 'x'), '# A\n\n## B\nb\n\nx\n\n## C\nc\n');
-  assert.equal(appendUnderHeading('# A\n', 'New', 'x'), '# A\n\n## New\n\nx\n');
+  const text = (...args) => appendUnderHeading(...args).text;
+  assert.equal(text('# A\n\ntext\n', '', 'more'), '# A\n\ntext\n\nmore\n');
+  assert.equal(text('# A\n\n## B\nb\n\n## C\nc\n', 'B', 'x'), '# A\n\n## B\nb\n\nx\n\n## C\nc\n');
+  assert.deepEqual(appendUnderHeading('# A\n', 'New', 'x'), { text: '# A\n\n## New\n\nx\n', created: true });
+  assert.equal(appendUnderHeading('# A\n\n## B\nb\n', 'b', 'x').created, false, 'headings match case-insensitively');
+  // A list keeps growing as one list, and the rest of the note is untouched.
+  assert.equal(text('# Index\n\n## Astronomy\n- [[A]]\n\n\n\n## Sources\n- [[S]]\n', 'Astronomy', '- [[B]]'), '# Index\n\n## Astronomy\n- [[A]]\n- [[B]]\n\n\n\n## Sources\n- [[S]]\n');
+  assert.equal(text('# A\n\n- one\n', '', '- two'), '# A\n\n- one\n- two\n');
+});
+
+await test('streamed replies are rebuilt into full responses, tool calls included', () => {
+  const anthropic = streamCollector('anthropic');
+  for (const event of [
+    { type: 'message_start', message: { model: 'claude-sonnet-5', usage: { input_tokens: 50, output_tokens: 1 } } },
+    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Adding to ' } },
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Newton.' } },
+    { type: 'content_block_stop', index: 0 },
+    { type: 'content_block_start', index: 1, content_block: { type: 'tool_use', id: 'tu_1', name: 'append_to_note', input: {} } },
+    { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: '{"path": "Study Buddy/' } },
+    { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: 'Isaac Newton.md", "content": "More."}' } },
+    { type: 'content_block_stop', index: 1 },
+    { type: 'content_block_start', index: 2, content_block: { type: 'tool_use', id: 'tu_2', name: 'list_folder', input: {} } },
+    { type: 'content_block_stop', index: 2 },
+    { type: 'message_delta', delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 40 } }
+  ]) anthropic.push(event);
+  assert.deepEqual(anthropic.result(), {
+    model: 'claude-sonnet-5',
+    usage: { input_tokens: 50, output_tokens: 40 },
+    stop_reason: 'tool_use',
+    content: [
+      { type: 'text', text: 'Adding to Newton.' },
+      { type: 'tool_use', id: 'tu_1', name: 'append_to_note', input: { path: 'Study Buddy/Isaac Newton.md', content: 'More.' } },
+      { type: 'tool_use', id: 'tu_2', name: 'list_folder', input: {} }
+    ]
+  });
+  assert.throws(() => anthropic.push({ type: 'error', error: { message: 'Overloaded' } }), /Overloaded/);
+
+  const openai = streamCollector('openai');
+  for (const event of [
+    { model: 'z-ai/glm-5.3', choices: [{ delta: { role: 'assistant' } }] },
+    { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_1', type: 'function', function: { name: 'read_note', arguments: '' } }] } }] },
+    { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"path":' } }] } }] },
+    { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '"_index.md"}' } }] } }] },
+    { choices: [{ delta: {}, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 70, completion_tokens: 9 } }
+  ]) openai.push(event);
+  assert.deepEqual(openai.result(), {
+    model: 'z-ai/glm-5.3',
+    usage: { prompt_tokens: 70, completion_tokens: 9 },
+    choices: [{
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'read_note', arguments: '{"path":"_index.md"}' } }]
+      }
+    }]
+  });
+});
+
+await test('a follow-up carries the answer it follows up on', async () => {
+  const vault = createVault({ key: KEY, fetchImpl: fakeObsidian(new Map()).fetchImpl });
+  const model = scriptedModel('anthropic', [{ text: 'Nothing new.' }]);
+  await fileNote({
+    note: { ...NOTE, question: 'expand on him', followsUp: '**Isaac Newton** (1643–1727) was an English physicist.' },
+    vault, complete: model.complete, wire: 'anthropic', folder: 'Study Buddy'
+  });
+  assert.match(model.seen[0].messages[0].content, /follow-up[\s\S]*Isaac Newton[\s\S]*expand on him/);
 });
 
 const failed = results.filter((ok) => !ok).length;

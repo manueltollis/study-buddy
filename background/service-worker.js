@@ -19,7 +19,7 @@ import {
   systemPrompt,
   wireOf
 } from '../lib/config.js';
-import { fileNote, undoOps } from '../lib/librarian.js';
+import { fileNote, streamCollector, undoOps } from '../lib/librarian.js';
 import { createVault } from '../lib/vault.js';
 
 const API_VERSION = '2023-06-01';
@@ -158,11 +158,36 @@ async function sendRequest(settings, options, signal) {
   return { response, preReadText: null };
 }
 
-/** Parses the SSE stream and pushes semantic events to `emit`. */
-async function readStream(response, emit, wire) {
+/** Yields each parsed `data:` frame of a server-sent event stream. */
+async function* sseEvents(response) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split('\n\n');
+    buffer = chunks.pop() ?? '';
+    for (const chunk of chunks) {
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (!data || data === '[DONE]') continue;
+        let event;
+        try {
+          event = JSON.parse(data);
+        } catch {
+          continue; /* partial or unknown frame - ignore */
+        }
+        yield event;
+      }
+    }
+  }
+}
+
+/** Parses the SSE stream and pushes semantic events to `emit`. */
+async function readStream(response, emit, wire) {
   let text = '';
   const usage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0 };
   let stopReason = null;
@@ -222,26 +247,7 @@ async function readStream(response, emit, wire) {
   };
 
   const handle = wire === 'openai' ? handleOpenAi : handleAnthropic;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const chunks = buffer.split('\n\n');
-    buffer = chunks.pop() ?? '';
-    for (const chunk of chunks) {
-      for (const line of chunk.split('\n')) {
-        if (!line.startsWith('data:')) continue;
-        const data = line.slice(5).trim();
-        if (!data || data === '[DONE]') continue;
-        try {
-          handle(JSON.parse(data));
-        } catch {
-          /* partial or unknown frame - ignore */
-        }
-      }
-    }
-  }
+  for await (const event of sseEvents(response)) handle(event);
 
   return { text, usage, stopReason, servedBy };
 }
@@ -414,13 +420,18 @@ function librarianSettings(settings) {
     effort: 'low',
     showReasoning: false,
     useFallbacks: false,
-    maxTokens: Math.max(settings.maxTokens, 4000)
+    // Room to write a whole note in one tool call.
+    maxTokens: Math.max(settings.maxTokens, 8000)
   };
 }
 
-/** One non-streaming request, resolving with the parsed body. */
+/**
+ * One request, resolving with the body a non-streaming call would return.
+ * It streams anyway: Chrome stops the worker if a response takes more than
+ * 30 seconds to start arriving, and writing out a long note takes longer.
+ */
 async function complete(settings, options) {
-  const { response, preReadText } = await sendRequest(settings, { ...options, stream: false }, undefined);
+  const { response, preReadText } = await sendRequest(settings, { ...options, stream: true }, undefined);
   if (!response.ok) {
     const raw = preReadText ?? (await response.text());
     let payload = null;
@@ -431,7 +442,9 @@ async function complete(settings, options) {
     }
     throw new Error(describeError(response.status, payload, raw));
   }
-  return response.json();
+  const collector = streamCollector(wireOf(settings));
+  for await (const event of sseEvents(response)) collector.push(event);
+  return collector.result();
 }
 
 function queueFiling(noteId) {
@@ -463,7 +476,13 @@ async function fileOne(noteId) {
     return updateFiling(noteId, { status: 'failed', error: 'No API key set for the current provider.' });
   }
 
-  await updateFiling(noteId, { status: 'working', step: 'Looking at the vault', ops: [], summary: '' });
+  // A retry after a failure keeps the earlier attempt's writes, so Undo still reaches them.
+  const previous = ((await chrome.storage.local.get(VAULT_KEY))[VAULT_KEY] || {})[noteId];
+  const prior = previous?.status === 'failed' ? previous.ops || [] : [];
+  await updateFiling(noteId, { status: 'working', step: 'Looking at the vault', ops: prior, summary: '', error: '' });
+  // Chrome also stops a worker after 30 seconds without extension activity, and
+  // a streamed reply alone doesn't count. Any API call resets that clock.
+  const keepAlive = setInterval(() => chrome.runtime.getPlatformInfo().catch(() => {}), 20000);
   try {
     const result = await fileNote({
       note,
@@ -480,7 +499,7 @@ async function fileOne(noteId) {
       status: 'filed',
       step: '',
       summary: result.summary,
-      ops: result.ops,
+      ops: [...prior, ...result.ops],
       suggestions: result.suggestions,
       unlinked: result.unlinked,
       model,
@@ -491,8 +510,10 @@ async function fileOne(noteId) {
       status: 'failed',
       step: '',
       error: String(error?.message || error),
-      ops: error.ops || []
+      ops: [...prior, ...(error.ops || [])]
     });
+  } finally {
+    clearInterval(keepAlive);
   }
 }
 

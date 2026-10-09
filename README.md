@@ -179,7 +179,11 @@ Setup:
    extension.
 2. In Study Buddy's settings, under **Obsidian vault**, paste the plugin's API key and hit **Connect**.
 3. Turn on **File every saved answer in the vault**, or file notes one at a time from the study notes
-   page. Each note there shows where it was filed, with **Undo**.
+   page.
+
+Under each answer in the panel, an **Obsidian** line shows what the librarian is doing as it works
+(*Reading _index.md…*, *Adding to Isaac Newton.md…*), then which notes it filed into, with **Undo**,
+or why it failed, with **Retry**. The study notes page shows the same for every note.
 
 Obsidian has to be open while filing. The librarian uses the current provider and key; a separate,
 cheaper model can be set for it, but very small models are unreliable at tool use.

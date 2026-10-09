@@ -491,11 +491,18 @@
       margin-bottom: 8px; white-space: pre-wrap; max-height: 120px; overflow-y: auto;
     }
     .meta { display: flex; align-items: center; gap: 8px; margin-top: 10px; font: 10.5px var(--font-mono); color: var(--faint); }
-    .meta button {
+    .meta button, .vault button {
       border: 1px solid var(--line); background: transparent; color: var(--muted); font: 500 10.5px var(--font-mono);
       cursor: pointer; padding: 2px 7px; border-radius: 6px;
     }
-    .meta button:hover { border-color: var(--text); color: var(--text); }
+    .meta button:hover, .vault button:hover { border-color: var(--text); color: var(--text); }
+    .vault { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-top: 6px; font: 10.5px var(--font-mono); color: var(--faint); }
+    .vault:empty { display: none; }
+    .vault--busy::before {
+      content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: blink 1.1s step-end infinite;
+    }
+    .vault--err { color: var(--danger); }
+    .vault b { font-weight: 600; color: var(--muted); }
     .notice { font-size: 12px; color: var(--muted); background: var(--quote-bg); border-radius: 9px; padding: 8px 10px; }
     .error { font-size: 12.5px; color: var(--danger); background: var(--danger-bg); border-radius: 9px; padding: 9px 11px; line-height: 1.5; }
     .error button { display: block; margin-top: 7px; border: 0; background: var(--danger); color: #fff; font-size: 12px; padding: 5px 10px; border-radius: 7px; cursor: pointer; }
@@ -980,7 +987,99 @@
       noteButton,
       saved
     );
+    trackFiling(turn);
     return noteButton;
+  }
+
+  /* -------------------------------------------------------- vault filing */
+
+  /** The librarian's progress per note id, mirrored from storage. */
+  let filings = {};
+  /** A filing that hasn't reported a step in this long has lost its worker. */
+  const STALLED_MS = 3 * 60 * 1000;
+  let stallTimer = null;
+
+  chrome.storage.local.get('vault', (stored) => {
+    if (chrome.runtime.lastError) return;
+    filings = stored.vault || {};
+    renderFilings();
+  });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !changes.vault) return;
+    filings = changes.vault.newValue || {};
+    renderFilings();
+  });
+
+  /** Points an answer's Obsidian line at its note, creating the line under the meta row if needed. */
+  function trackFiling(turn) {
+    let line = turn.meta.nextElementSibling;
+    if (!line || !line.classList.contains('vault')) {
+      line = el('div', { class: 'vault' });
+      turn.meta.after(line);
+    }
+    line.dataset.noteId = turn.noteId || '';
+    renderFiling(line);
+  }
+
+  function renderFilings() {
+    if (!state.shadow) return;
+    for (const line of state.shadow.querySelectorAll('.vault')) renderFiling(line);
+  }
+
+  const noteName = (path) => path.split('/').pop().replace(/\.md$/i, '');
+
+  /** One line under the answer saying what the librarian is doing with it in Obsidian. */
+  function renderFiling(line) {
+    const id = line.dataset.noteId;
+    const entry = id ? filings[id] : null;
+    const send = (type) => chrome.runtime.sendMessage({ type, noteId: id }).catch(() => null);
+    const button = (text, onclick) => el('button', { text, onclick });
+    const retry = (text) => button(text, () => send('vault-file'));
+    let kind = '';
+    let parts = [];
+
+    if (!id || (!entry && (!settings.vaultKey || settings.vaultAutoFile))) {
+      // Not saved, no vault, or auto-filing is about to pick it up.
+    } else if (!entry) {
+      parts = [retry('File in Obsidian')];
+    } else if ((entry.status === 'queued' || entry.status === 'working') && Date.now() - (entry.at || 0) > STALLED_MS) {
+      kind = 'err';
+      parts = [el('span', { text: `Obsidian · stopped responding at “${entry.step || 'starting'}”` }), retry('Retry')];
+    } else if (entry.status === 'queued') {
+      kind = 'busy';
+      parts = [el('span', { text: 'Obsidian · waiting for the librarian…' })];
+    } else if (entry.status === 'working') {
+      kind = 'busy';
+      parts = [el('span', { text: `Obsidian · ${entry.step || 'working'}…` })];
+    } else if (entry.status === 'filed') {
+      const names = [...new Set((entry.ops || []).map((op) => noteName(op.path)))];
+      parts = [
+        el('span', { title: entry.summary || '' }, names.length
+          ? [document.createTextNode('Obsidian · filed in '), el('b', { text: names.join(', ') })]
+          : [document.createTextNode('Obsidian · nothing needed changing')]),
+        names.length
+          ? button('Undo', async () => {
+              const result = await send('vault-undo');
+              if (result && !result.ok) line.title = result.message;
+            })
+          : null
+      ];
+      if (entry.suggestions?.length) {
+        parts.push(el('span', { text: `· study next: ${entry.suggestions.map((s) => s.name).join(', ')}` }));
+      }
+    } else if (entry.status === 'undone') {
+      parts = [el('span', { text: 'Obsidian · taken back out' }), retry('File again')];
+    } else {
+      kind = 'err';
+      parts = [el('span', { text: `Obsidian · failed: ${entry.error || 'unknown error'}`, title: entry.error || '' }), retry('Retry')];
+    }
+
+    line.className = 'vault' + (kind ? ` vault--${kind}` : '');
+    line.replaceChildren(...parts.filter(Boolean));
+    if (kind === 'busy') {
+      clearTimeout(stallTimer);
+      stallTimer = setTimeout(renderFilings, 30000);
+    }
   }
 
   /** Keeps a highlight's conversation, so clicking the highlight later brings it back. */
@@ -1045,6 +1144,7 @@
     }
     button.disabled = false;
     labelNoteButton(button, turn);
+    if (turn.meta) trackFiling(turn);
   }
 
   function labelNoteButton(button, turn) {
@@ -1054,6 +1154,8 @@
 
   async function saveNote(answer) {
     const lastUser = [...state.thread].reverse().find((turn) => turn.role === 'user');
+    // A follow-up ("expand on him") only makes sense next to what it follows up on.
+    const earlier = state.thread.filter((turn) => turn.role === 'assistant' && turn.content !== answer).slice(-1)[0];
     const store = await chrome.storage.local.get('notes');
     const notes = store.notes || [];
     const id = 'note_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -1063,6 +1165,7 @@
       title: document.title,
       selection: state.subject && !state.subject.isPage ? state.subject.text : '',
       question: lastUser ? lastUser.content.slice(0, 400) : '',
+      followsUp: earlier ? earlier.content.slice(0, 600) : '',
       answer,
       createdAt: Date.now()
     });
