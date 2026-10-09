@@ -28,6 +28,7 @@
     theme: 'auto',
     bubbleEnabled: true,
     autoHighlight: true,
+    autoSaveNotes: true,
     contextChars: 1500
   };
 
@@ -942,6 +943,7 @@
     }
 
     const saved = el('span', { text: '' });
+    const noteButton = el('button', { text: 'Save note', onclick: () => toggleNote(current, noteButton) });
     current.meta.replaceChildren(
       el('span', { text: bits.filter(Boolean).join(' · ') }),
       el('button', {
@@ -952,25 +954,39 @@
           setTimeout(() => { saved.textContent = ''; }, 1400);
         }
       }),
-      el('button', {
-        text: 'Save note',
-        onclick: async () => {
-          await saveNote(current.buffer);
-          saved.textContent = 'saved';
-          setTimeout(() => { saved.textContent = ''; }, 1400);
-        }
-      }),
+      noteButton,
       saved
     );
+    if (settings.autoSaveNotes) toggleNote(current, noteButton);
     scrollToEnd();
+  }
+
+  /** Files an answer in the study notes, or takes it back out if it is already there. */
+  async function toggleNote(turn, button) {
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+      if (turn.noteId) {
+        await forgetNote(turn.noteId);
+        turn.noteId = null;
+      } else {
+        turn.noteId = await saveNote(turn.buffer);
+      }
+    } catch {
+      /* extension reloaded - leave the button as it was */
+    }
+    button.disabled = false;
+    button.textContent = turn.noteId ? 'Saved ✓' : 'Save note';
+    button.title = turn.noteId ? 'In your study notes. Click to remove it.' : '';
   }
 
   async function saveNote(answer) {
     const lastUser = [...state.thread].reverse().find((turn) => turn.role === 'user');
     const store = await chrome.storage.local.get('notes');
     const notes = store.notes || [];
+    const id = 'note_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     notes.push({
-      id: 'note_' + Date.now().toString(36),
+      id,
       url: docUrl(),
       title: document.title,
       selection: state.subject && !state.subject.isPage ? state.subject.text : '',
@@ -979,6 +995,12 @@
       createdAt: Date.now()
     });
     await chrome.storage.local.set({ notes: notes.slice(-500) });
+    return id;
+  }
+
+  async function forgetNote(id) {
+    const store = await chrome.storage.local.get('notes');
+    await chrome.storage.local.set({ notes: (store.notes || []).filter((note) => note.id !== id) });
   }
 
   /* --------------------------------------------------------- listeners */

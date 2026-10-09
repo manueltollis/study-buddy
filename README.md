@@ -88,7 +88,8 @@ empty.
 - **PDFs work too** — papers open in the extension's own viewer, where text is selectable. See below.
 - **Highlights** — any passage you ask about is highlighted, and comes back the next time you open
   the page. Click a highlight to reopen it; **Alt-click** to remove it.
-- **Save note** under any answer files it in your study notes (`☰` in the panel header).
+- **Notes** — every answer is filed in your study notes (`☰` in the panel header) as it arrives, so
+  nothing is lost when you close the page. Click **Saved ✓** under an answer to take it back out.
 - **Whole page** — from the toolbar popup: *Summarize this page* or *Quiz me on the page*.
 - **Right-click** any selection for the same actions.
 
@@ -140,6 +141,8 @@ text in the file to select.
 - **Explain at this level** — keep it simple / student / expert. This changes the tone and depth
   of every answer.
 - **Theme** — Automatic (follows your system), Light or Dark, for the panel and every extension page.
+- **Save every answer to my study notes** — on by default; turn it off to keep only the answers you
+  file yourself with **Save note**.
 - **Open PDFs in the study viewer** — on by default; turn it off to leave PDFs to Chrome.
 - **Surrounding context** — how much nearby page text rides along with the passage so the model can
   resolve pronouns and references. Set to 0 to send the passage alone.
