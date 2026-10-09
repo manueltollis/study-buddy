@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Study Buddy",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Highlight anything on a page or PDF and get it explained, simplified, or turned into a quiz by the AI model you choose.",
   "minimum_chrome_version": "116",
   "permissions": [
