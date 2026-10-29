@@ -36,6 +36,22 @@ body { margin: 0; background: var(--sunken); }
 .textLayer :is(span, br) {
   color: transparent; position: absolute; white-space: pre; cursor: text; margin: 0; transform-origin: 0% 0%;
 }
+/*
+ * pdf.js only sets variables on each span; these rules turn them into a size and a
+ * stretch so the invisible text covers the drawn text exactly. Without them a span
+ * inherits the body's font size, runs wider than its line, and a selection (and the
+ * highlight made from it) stops partway along what the reader sees.
+ */
+.textLayer {
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.textLayer > :not(.markedContent), .textLayer .markedContent span:not(.markedContent) {
+  --font-height: 0; --scale-x: 1; --rotate: 0deg;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
 .textLayer span.markedContent { top: 0; height: 0; }
 .textLayer br::selection { background: transparent; }
 /* Over transparent text a background block reads as a highlighter stroke. */
