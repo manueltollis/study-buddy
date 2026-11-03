@@ -3,7 +3,7 @@
 A Chrome extension for reading hard things. Highlight a passage on any page and ask an AI model to
 explain it, simplify it, define the jargon, or quiz you on it — without leaving the page.
 
-![panel](docs/panel.png)
+![The Study Buddy panel explaining a highlighted passage](docs/panel.png)
 
 ## Install
 
@@ -21,7 +21,7 @@ browse, and nothing is sent anywhere else.
 Every provider here speaks the Anthropic Messages API, so switching one is a base-URL swap. Pick it
 in settings, or flip between them from the toolbar popup mid-session.
 
-![settings](docs/settings.png)
+![Provider, key and model settings](docs/settings.png)
 
 | Provider | Model | $/M in → out | ≈ per question | Questions per $1 |
 | --- | --- | --- | --- | --- |
@@ -76,7 +76,7 @@ empty.
 
 **Select text** → a bubble appears with a highlighter pen, then *Explain · Simpler · Quiz · Ask…*.
 
-![selection bubble](docs/bubble.png)
+![The selection bubble, next to a lime highlight with a conversation and an orange plain highlight](docs/bubble.png)
 
 - **Preset actions** — the bubble's first three, plus the full set in the panel: Explain, Simpler,
   Key points, Example, Define terms, Quiz me.
@@ -86,17 +86,19 @@ empty.
 - **Follow up** in the same box — the thread keeps the passage in context, and preset actions and
   typed questions mix freely in one conversation.
 - **PDFs work too** — papers open in the extension's own viewer, where text is selectable. See below.
-- **Highlights** — any passage you ask about is highlighted in the marker's yellow, and comes back
+- **Highlights** — any passage you ask about is highlighted in the marker's lime, and comes back
   the next time you open the page. Click a highlight to reopen it with the whole conversation you
   had about it, and keep asking; **Alt-click** to remove it (and its conversation).
 - **Plain highlights** — the **pen** at the left of the bubble (or `⌘⇧Y`, or *Highlight* in the
   right-click menu) marks the passage in orange and nothing else happens: no question, nothing sent
   anywhere, the panel stays as it was. Click one later to get the bubble back over it — ask about it
-  after all (it turns yellow and keeps the conversation) or **Remove** it.
+  after all (it turns lime and keeps the conversation) or **Remove** it.
 - **Notes** — every answer is filed in your study notes (`☰` in the panel header) as it arrives, so
   nothing is lost when you close the page. Click **Saved ✓** under an answer to take it back out.
-- **Whole page** — from the toolbar popup: *Summarize this page* or *Quiz me on the page*.
-- **Right-click** any selection for the same actions.
+- **Whole page** — from the toolbar popup: *Summarize this page* or *Quiz me on this page*. The
+  popup also switches provider, model and effort on the fly.
+- **Right-click** any selection for the same actions, plus *Highlight*; right-click anywhere on a
+  page for the whole-page ones.
 
 | Shortcut | Action |
 | --- | --- |
@@ -116,7 +118,7 @@ in an arXiv paper and have anything reach it. So PDFs open in the extension's ow
 over it, which is ordinary DOM. Selection, the bubble, the panel and persistent highlights all work
 exactly as they do on a web page.
 
-![a paper in the study viewer](docs/pdf.png)
+![An arXiv paper in the study viewer, with a passage explained in the panel](docs/pdf.png)
 
 Open `arxiv.org/pdf/2505.05470` and you land in the viewer automatically — nothing to click. It
 handles `.pdf` URLs and the extensionless `/pdf/<id>` shape that arXiv and bioRxiv use; for the
@@ -137,31 +139,51 @@ text in the file to select.
 
 ## Settings
 
+**Provider & key**
+
 - **Provider** — Anthropic, Z.ai (GLM), OpenRouter, or a custom endpoint. Keys and model choice are
   remembered per provider, so switching back and forth costs nothing — cheap model for skimming,
   Opus for the paragraph that actually matters.
+- **API key** — with **Test** to check it before you rely on it.
 - **Workspace ID** — Anthropic only, and only for a key that spans several workspaces (see above).
-- **Model** — the panel footer shows tokens and the real cost of each answer.
+
+**Model**
+
+- **Model** — the price per million tokens and a rough questions-per-dollar figure show underneath;
+  the panel shows the tokens and real cost of each answer.
 - **Effort** — Anthropic only: how hard the model thinks before answering. `low` is snappy, `high`+
   is for genuinely hard passages. Ignored on Haiku.
 - **Explain at this level** — keep it simple / student / expert. This changes the tone and depth
   of every answer.
-- **Theme** — Automatic (follows your system), Light or Dark, for the panel and every extension page.
-- **Save every answer to my study notes** — on by default; turn it off to keep only the answers you
-  file yourself with **Save note**.
-- **Open PDFs in the study viewer** — on by default; turn it off to leave PDFs to Chrome.
-- **Surrounding context** — how much nearby page text rides along with the passage so the model can
-  resolve pronouns and references. Set to 0 to send the passage alone.
+- **Max answer length** — the token cap per answer (4000 by default).
 - **Show the model's reasoning** — Anthropic only: streams a summary of the thinking above each answer.
 - **Retry declined requests on a fallback model** — Anthropic only: server-side refusal fallback for Opus 5. If
   your account isn't enrolled in that beta the extension drops it automatically on the first 400
   and retries; you can also just turn it off.
 
+**Reading**
+
+- **Theme** — Automatic (follows your system), Light or Dark, for the panel and every extension page.
+- **Show the quick-action bubble on selection** — turn it off to use only the keyboard shortcuts and
+  the right-click menu.
+- **Highlight passages I ask about** — on by default. The pen makes a plain highlight either way.
+- **Save every answer to my study notes** — on by default; turn it off to keep only the answers you
+  file yourself with **Save note**.
+- **Open PDFs in the study viewer** — on by default; turn it off to leave PDFs to Chrome.
+- **Surrounding context** — how much nearby page text rides along with the passage so the model can
+  resolve pronouns and references. Set to 0 to send the passage alone.
+
+**Obsidian vault** — see [below](#obsidian-vault-prototype).
+
+**Data** — open the study notes, clear every highlight, or delete every note.
+
 ## Notes and highlights
 
-`☰` in the panel (or *Notes* in the popup) opens the study-notes page: everything you saved,
-everything you highlighted, grouped by page, searchable, and exportable as one Markdown file (the
-notes first, then every highlight by page).
+`☰` in the panel (or *Notes* in the popup) opens the study-notes page: everything you saved under
+**Notes**, everything you highlighted under **Highlights**, grouped by page, searchable, and
+exportable as one Markdown file (the notes first, then every highlight by page).
+
+![The study notes page](docs/notes.png)
 
 ## Obsidian vault (prototype)
 
@@ -215,9 +237,14 @@ lib/librarian.js               Obsidian filing agent: tools, guardrails, undo
 lib/vault.js                   client for the Obsidian Local REST API plugin
 lib/markdown.js                DOM-building Markdown renderer (no innerHTML)
 lib/pages.css                  shared styles for the extension's own pages
+lib/theme.js                   applies the Theme setting to the extension's own pages
 options/  popup/  notes/       settings, toolbar popup, study notes
+fonts/  icons/                 bundled typefaces (Bricolage, Geist, Geist Mono) and toolbar icons
+scripts/store-assets.js        renders the Chrome Web Store icon, promo tile and screenshots
 test/smoke.js                  end-to-end test
 test/librarian.test.mjs        librarian against a fake vault and a scripted model
+test/fixture.html  .pdf        pages the smoke test drives
+PRIVACY.md                     privacy policy for the Web Store listing
 ```
 
 The panel lives in a shadow root, so page CSS can't reach it and its styles can't leak out. Model
@@ -234,9 +261,14 @@ node test/librarian.test.mjs
 Launches headless Chrome with the extension loaded, stubs the Anthropic endpoint inside the
 service worker, and drives a real selection → streamed answer → highlight → follow-up → reload
 flow, plus the options, notes, and popup pages. No API key or network access needed. Set
-`CHROME_PATH` if Chrome isn't at the macOS default location.
+`CHROME_PATH` if Chrome isn't at the macOS default location, and `SHOTS=<dir>` to also save
+screenshots of the UI in light and dark.
 
 After editing files, hit the reload icon on `chrome://extensions` and refresh open tabs.
+
+`node scripts/store-assets.js [outDir]` renders the Web Store icon, promo tile and 1280×800
+screenshots from the real extension the same way (stubbed API, headless Chrome); they land in
+`~/Downloads/study-buddy-store` by default.
 
 ### Releasing
 
