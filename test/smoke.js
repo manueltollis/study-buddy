@@ -666,6 +666,12 @@ async function targets() {
     await sleep(400);
     const pdfPlain = await pdf.eval(`[...document.querySelectorAll('.textLayer mark.claude-study-highlight--plain')].map((m) => m.textContent).join('')`);
     check('the pen highlights PDF text', pdfPenned.trim().length > 12 && pdfPlain.trim() === pdfPenned.trim(), JSON.stringify({ picked: pdfPenned.slice(0, 40), marked: pdfPlain.slice(0, 40) }));
+    const pdfColours = await pdf.eval(`(() => {
+      const paint = (sel) => { const m = document.querySelector(sel); return m ? getComputedStyle(m).backgroundColor : ''; };
+      return { asked: paint('.textLayer mark.claude-study-highlight:not(.claude-study-highlight--plain)'), plain: paint('.textLayer mark.claude-study-highlight--plain') };
+    })()`);
+    check('PDF plain highlights are orange, asked ones the marker colour',
+      /^rgba\(212, 255, 58,/.test(pdfColours.asked) && /^rgba\(255, 159, 67,/.test(pdfColours.plain), JSON.stringify(pdfColours));
     await pdf.send('Page.navigate', { url: viewerTarget.url });
     let pdfPlainBack = 0;
     for (let i = 0; i < 40 && pdfPlainBack === 0; i++) {
