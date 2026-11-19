@@ -93,6 +93,9 @@ empty.
   right-click menu) marks the passage in orange and nothing else happens: no question, nothing sent
   anywhere, the panel stays as it was. Click one later to get the bubble back over it — ask about it
   after all (it turns lime and keeps the conversation) or **Remove** it.
+- **Undo** — `⌘Z` takes back the last highlight you made on the page, plain or lime, and its
+  conversation with it; press it again to keep going back. Only highlights from this visit count,
+  and in a text box `⌘Z` still undoes your typing.
 - **Notes** — every answer is filed in your study notes (`☰` in the panel header) as it arrives, so
   nothing is lost when you close the page. Click **Saved ✓** under an answer to take it back out.
 - **Whole page** — from the toolbar popup: *Summarize this page* or *Quiz me on this page*. The
@@ -105,6 +108,7 @@ empty.
 | `⌘⇧E` / `Ctrl+Shift+E` | Explain the current selection |
 | `⌘⇧Y` / `Ctrl+Shift+Y` | Highlight the current selection, no question asked |
 | `⌘⇧U` / `Ctrl+Shift+U` | Show / hide the panel |
+| `⌘Z` / `Ctrl+Z` | Undo the last highlight you made on this page |
 | `Esc` | Close the panel |
 | `Enter` | Send your question (`Shift+Enter` for a newline) |
 

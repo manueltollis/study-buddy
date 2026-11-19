@@ -502,6 +502,59 @@ async function targets() {
   const promotedLeft = await page.eval(`document.querySelectorAll('mark.claude-study-highlight').length + ':' + document.getElementById('p2').childNodes.length`);
   check('Alt-click removes a promoted highlight and leaves the paragraph whole', promotedLeft === '0:1', promotedLeft);
 
+  // ⌘Z takes back the highlights made on this visit, newest first, conversation and all.
+  const undoModifier = (await page.eval(`/Mac|iPhone|iPad/.test(navigator.platform)`)) ? 4 : 2; // Meta : Ctrl
+  const pressUndo = async () => {
+    for (const type of ['rawKeyDown', 'keyUp']) {
+      await page.send('Input.dispatchKeyEvent', { type, modifiers: undoModifier, key: 'z', code: 'KeyZ', windowsVirtualKeyCode: 90 });
+    }
+    await sleep(300);
+  };
+  await page.eval(`(() => {
+    const node = document.getElementById('p1').firstChild;
+    const range = document.createRange(); range.setStart(node, 0); range.setEnd(node, 29);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  })()`);
+  await sleep(300);
+  await page.eval(`${inShadow('.bubble .primary')}.click(); 'explain'`);
+  await sleep(1400);
+  await page.eval(selectP2);
+  await sleep(300);
+  await page.eval(`${inShadow('.bubble .pen')}.click(); 'pen'`);
+  await sleep(400);
+  const undoState = async () => ({
+    asked: await page.eval(`[...document.querySelectorAll('mark.claude-study-highlight:not(.claude-study-highlight--plain)')].map((m) => m.textContent).join('')`),
+    plain: await page.eval(`[...document.querySelectorAll('mark.claude-study-highlight--plain')].map((m) => m.textContent).join('').slice(0, 12)`),
+    stored: JSON.parse(await sw.eval(`${pageHighlights}.then((list) => JSON.stringify(list.map((h) => h.kind || 'asked')))`))
+  });
+  const askedId = await page.eval(`document.querySelector('#p1 mark.claude-study-highlight').dataset.hlId`);
+  const askedChat = () => sw.eval(`chrome.storage.local.get('chat:${askedId}').then((s) => (s['chat:${askedId}'] || []).length)`);
+  const twoMade = await undoState();
+  check('two highlights to undo: one asked about, one with the pen',
+    twoMade.asked === 'Photosynthesis is the process' && twoMade.plain === 'Calvin cycle' && twoMade.stored.join() === 'asked,plain' && (await askedChat()) === 1,
+    JSON.stringify(twoMade));
+  await page.eval(`${inShadow('.composer textarea')}.focus(); 'typing'`);
+  await pressUndo();
+  const whileTyping = await undoState();
+  check('⌘Z in the question box is left to the text', whileTyping.asked && whileTyping.plain && whileTyping.stored.length === 2, JSON.stringify(whileTyping));
+  await page.eval(`${inShadow('.composer textarea')}.blur(); 'blurred'`);
+  // The page's own listeners only hear the ⌘Zs the extension had nothing to do with.
+  await page.eval(`window.__undoKeys = []; window.addEventListener('keydown', (e) => { if (e.code === 'KeyZ') window.__undoKeys.push(e.defaultPrevented); }); 'listening'`);
+
+  await pressUndo();
+  const firstUndo = await undoState();
+  check('⌘Z takes back the newest highlight first', firstUndo.plain === '' && firstUndo.asked === 'Photosynthesis is the process' && firstUndo.stored.join() === 'asked', JSON.stringify(firstUndo));
+  await pressUndo();
+  const secondUndo = await undoState();
+  const p1p2 = await page.eval(`document.getElementById('p1').childNodes.length + ':' + document.getElementById('p2').childNodes.length`);
+  check('⌘Z again takes back the one before, conversation and all',
+    secondUndo.asked === '' && secondUndo.stored.length === 0 && (await askedChat()) === 0 && p1p2 === '1:1',
+    JSON.stringify({ ...secondUndo, paragraphs: p1p2 }));
+  await pressUndo();
+  const pageHeard = await page.eval(`JSON.stringify(window.__undoKeys)`);
+  check('⌘Z reaches the page only once there is nothing left to undo', pageHeard === '[false]', pageHeard);
+
   // long selection exposes the quote expander
   await page.eval(`(() => {
     const range = document.createRange();

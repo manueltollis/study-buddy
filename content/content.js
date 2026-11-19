@@ -14,7 +14,8 @@
   const PLAIN_CLASS = HL_CLASS + '--plain';
   /** Worn by a fresh mark just long enough to swipe in. */
   const NEW_CLASS = HL_CLASS + '--new';
-  const PEN_SHORTCUT = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘⇧Y' : 'Ctrl+Shift+Y';
+  const MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+  const PEN_SHORTCUT = MAC ? '⌘⇧Y' : 'Ctrl+Shift+Y';
   const PORT_NAME = 'claude-study';
   /** Storage key prefix for a highlight's conversation: `chat:<highlightId>`. */
   const CHAT_PREFIX = 'chat:';
@@ -285,7 +286,12 @@
     await chrome.storage.local.set({ highlights: all });
   }
 
+  /** Ids of the highlights made since this page loaded, newest last: what ⌘Z takes back. */
+  const undoable = [];
+
   async function forgetHighlight(id) {
+    const made = undoable.indexOf(id);
+    if (made !== -1) undoable.splice(made, 1);
     const { all, list } = await storedHighlights();
     all[pageKey()] = list.filter((h) => h.id !== id);
     await chrome.storage.local.set({ highlights: all });
@@ -329,7 +335,23 @@
     const entry = { id, text: target, occurrence, createdAt: Date.now(), title: document.title };
     if (kind === 'plain') entry.kind = 'plain';
     persistHighlight(entry);
+    undoable.push(id);
     return entry;
+  }
+
+  /**
+   * ⌘Z: removes the newest highlight made on this visit, conversation and all,
+   * just as Alt-click would. False when there is nothing left to take back.
+   */
+  function undoHighlight() {
+    const id = undoable.pop();
+    if (!id) return false;
+    if (state.pending && state.pending.highlightId === id) {
+      state.pending = null;
+      hideBubble();
+    }
+    forgetHighlight(id);
+    return true;
   }
 
   function restoreHighlight(entry) {
@@ -1294,6 +1316,23 @@
       closePanel();
     }
   });
+
+  /** A field being typed in, where ⌘Z belongs to the text. Sees through the panel's shadow root. */
+  function isTyping(event) {
+    const target = event.composedPath()[0];
+    if (!target || target.nodeType !== Node.ELEMENT_NODE) return false;
+    return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
+  }
+
+  // Captured so a page that swallows its keys can't hide ⌘Z; with nothing to undo it passes through.
+  document.addEventListener('keydown', (event) => {
+    const mod = MAC ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+    if (!mod || event.shiftKey || event.altKey || event.key.toLowerCase() !== 'z') return;
+    if (event.defaultPrevented || isTyping(event)) return;
+    if (!undoHighlight()) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
 
   document.addEventListener('click', (event) => {
     const mark = event.target.closest && event.target.closest('mark.' + HL_CLASS);
